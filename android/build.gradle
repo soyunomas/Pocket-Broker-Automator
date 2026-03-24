@@ -5,6 +5,21 @@ allprojects {
     }
 }
 
+// Force all subprojects (plugins) to compile against SDK 34
+// to avoid aapt2 incompatibility with android-35 platform
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                if (compileSdkVersion.toString().contains("35") || 
+                    (project.android.hasProperty('compileSdk') && project.android.compileSdk >= 35)) {
+                    compileSdk = 34
+                }
+            }
+        }
+    }
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
