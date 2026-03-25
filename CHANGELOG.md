@@ -1,5 +1,47 @@
 # Changelog — PocketBroker Automator
 
+## [0.5.0] - 2026-03-25 — Broker MQTT Local Embebido
+
+### ✅ Implementado
+
+#### Broker MQTT Local (Moquette vía MethodChannel)
+- Integración de **Moquette 0.17** (broker MQTT en Java) como dependencia nativa Android
+- `MqttBrokerPlugin.kt` expone el broker vía `MethodChannel` (`com.pocketbroker/mqtt_broker`)
+- Métodos: `startBroker`, `stopBroker`, `isBrokerRunning`
+- Store de Moquette en directorio privado de la app (`filesDir/moquette/`) para evitar errores de permisos
+- Al iniciar, devuelve las IPs IPv4 del dispositivo para que los clientes sepan dónde conectarse
+
+#### Start/Stop dinámico del broker
+- Arranque y parada desde la UI sin reiniciar la app
+- Estado persistido en Hive (`BrokerConfig`)
+- Feedback visual con indicador de carga durante start/stop
+
+#### Puerto configurable
+- Campo editable en la pantalla de configuración (1–65535)
+- Deshabilitado mientras el broker está en ejecución
+- Valor por defecto: 1883
+
+#### Autenticación básica en broker
+- Switch para activar/desactivar autenticación
+- Campos de usuario y contraseña (con toggle de visibilidad)
+- `SimpleAuthenticator` valida credenciales contra los valores configurados
+- Deshabilitado mientras el broker está en ejecución
+
+#### UI de control en `BrokerScreen`
+- **Card de estado** — Icono, texto de estado (Activo/Detenido), puerto, IPs del dispositivo en verde monospace
+- **Card de configuración** — Puerto, switch de autenticación, campos de credenciales
+- **Card informativa** — Descripción del broker local
+
+#### Nuevos archivos
+- `android/.../MqttBrokerPlugin.kt` — Plugin nativo con Moquette
+- `lib/services/broker_service.dart` — Wrapper del MethodChannel
+- `lib/providers/broker_provider.dart` — State management del broker
+
+#### APK descargable
+- El APK release compilado está disponible en la carpeta [`app/`](app/) del repositorio
+
+---
+
 ## [0.4.0] - 2026-03-22 — Fix: Estabilidad de conexión y URLs
 
 ### 🐛 Corregido
@@ -176,12 +218,12 @@
 
 ### 🟡 Prioridad Media
 
-#### Broker MQTT Local
-- [ ] Integrar Moquette (Java) vía MethodChannel
-- [ ] Start/Stop dinámico del broker
-- [ ] Puerto configurable
-- [ ] Autenticación básica en broker
-- [ ] UI de control en `BrokerScreen`
+#### ✅ Broker MQTT Local (Completado en 0.5.0)
+- [x] Integrar Moquette (Java) vía MethodChannel
+- [x] Start/Stop dinámico del broker
+- [x] Puerto configurable
+- [x] Autenticación básica en broker
+- [x] UI de control en `BrokerScreen`
 
 #### Dashboard mejoras
 - [ ] Iconos seleccionables visualmente (icon picker)

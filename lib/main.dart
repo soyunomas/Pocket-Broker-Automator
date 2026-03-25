@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'models/connection_profile.dart';
 import 'models/dashboard_button.dart';
@@ -16,6 +18,7 @@ import 'providers/connection_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'providers/automation_provider.dart';
 import 'providers/log_provider.dart';
+import 'providers/broker_provider.dart';
 
 import 'screens/home_screen.dart';
 
@@ -38,34 +41,78 @@ void main() async {
     await Permission.notification.request();
   }
 
+  // Initialize notification plugin in main isolate to handle notification taps
+  final notifPlugin = FlutterLocalNotificationsPlugin();
+  await notifPlugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+    onDidReceiveNotificationResponse: (response) async {
+      final url = response.payload;
+      if (url != null && url.isNotEmpty) {
+        try {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        } catch (_) {}
+      }
+    },
+  );
+
+  // Check if app was launched by tapping a notification
+  final launchDetails = await notifPlugin.getNotificationAppLaunchDetails();
+  final launchPayload = launchDetails?.notificationResponse?.payload;
+
   // Initialize services
   final logService = LogService();
   await logService.init();
   await BackgroundServiceController.initialize();
 
-  runApp(PocketBrokerApp(logService: logService));
+  runApp(PocketBrokerApp(logService: logService, initialUrl: launchPayload));
 }
 
-class PocketBrokerApp extends StatelessWidget {
+class PocketBrokerApp extends StatefulWidget {
   final LogService logService;
+  final String? initialUrl;
 
-  const PocketBrokerApp({super.key, required this.logService});
+  const PocketBrokerApp({super.key, required this.logService, this.initialUrl});
+
+  @override
+  State<PocketBrokerApp> createState() => _PocketBrokerAppState();
+}
+
+class _PocketBrokerAppState extends State<PocketBrokerApp> {
+  @override
+  void initState() {
+    super.initState();
+    // If app was launched by tapping a URL notification, open the URL
+    if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        launchUrl(Uri.parse(widget.initialUrl!),
+            mode: LaunchMode.externalApplication);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => ConnectionProvider(logService: logService)..init(),
+          create: (_) =>
+              ConnectionProvider(logService: widget.logService)..init(),
         ),
         ChangeNotifierProvider(
-          create: (_) => DashboardProvider(logService: logService)..init(),
+          create: (_) =>
+              DashboardProvider(logService: widget.logService)..init(),
         ),
         ChangeNotifierProvider(
           create: (_) => AutomationProvider()..init(),
         ),
         ChangeNotifierProvider(
-          create: (_) => LogProvider(logService: logService),
+          create: (_) => LogProvider(logService: widget.logService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              BrokerProvider(logService: widget.logService)..init(),
         ),
       ],
       child: MaterialApp(

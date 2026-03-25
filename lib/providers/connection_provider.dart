@@ -53,13 +53,17 @@ class ConnectionProvider extends ChangeNotifier {
     BackgroundServiceController.on('launchUrl').listen((event) async {
       if (event != null) {
         final urlStr = event['url'] as String? ?? '';
+        logService.log('action', 'UI: recibido launchUrl IPC: $urlStr');
         if (urlStr.isNotEmpty) {
           try {
             final uri = Uri.parse(urlStr);
             await launchUrl(uri, mode: LaunchMode.externalApplication);
+            logService.log('action', 'UI: URL abierta correctamente: $urlStr');
           } catch (e) {
-            logService.log('error', 'Error abriendo URL: $urlStr → $e');
+            logService.log('error', 'UI: error abriendo URL: $urlStr → $e');
           }
+        } else {
+          logService.log('error', 'UI: launchUrl recibido con URL vacía');
         }
       }
     });

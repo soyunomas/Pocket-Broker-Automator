@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
               NavigationDestination(
                 icon: Icon(Icons.link_outlined),
                 selectedIcon: Icon(Icons.link),
-                label: 'Conexiones',
+                label: 'Conex.',
               ),
               NavigationDestination(
                 icon: Icon(Icons.dns_outlined),

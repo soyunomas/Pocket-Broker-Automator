@@ -10,10 +10,17 @@ PocketBroker Automator actúa como cliente MQTT avanzado, motor de automatizaci�
 
 ---
 
+## 📥 Descarga
+
+El APK release compilado está disponible en la carpeta [`app/`](app/app-release.apk). Descárgalo e instálalo directamente en tu dispositivo Android.
+
+---
+
 ## ✨ Características
 
 - 🔌 **Cliente MQTT** — Conexión a múltiples brokers con perfiles guardados (TCP/SSL)
 - 🔄 **Reconexión robusta** — Backoff exponencial + detección de red + manejo de Doze Mode
+- 📡 **Broker MQTT local** — Broker embebido (Moquette) con start/stop dinámico, puerto configurable y autenticación básica
 - 🤖 **Motor de automatización** — Reglas trigger/acción sobre mensajes MQTT en tiempo real
 - 🎛️ **Panel de control** — Botones configurables para publicar en topics MQTT
 - 📋 **Logs** — Registro persistente de mensajes, acciones y errores con filtros
@@ -112,6 +119,7 @@ lib/
 │   └── broker_config.dart
 ├── services/                 # Lógica de negocio
 │   ├── mqtt_client_service.dart    # Cliente MQTT + reconexión
+│   ├── broker_service.dart         # Broker local (MethodChannel)
 │   ├── background_service.dart     # Foreground service Android
 │   ├── automation_engine.dart      # Motor de reglas
 │   └── log_service.dart            # Persistencia de logs
@@ -119,6 +127,7 @@ lib/
 │   ├── connection_provider.dart
 │   ├── dashboard_provider.dart
 │   ├── automation_provider.dart
+│   ├── broker_provider.dart
 │   └── log_provider.dart
 ├── screens/                  # Pantallas UI
 │   ├── home_screen.dart
@@ -141,6 +150,7 @@ lib/
         ↓
 [ Services Layer ]
     ├── MqttClientService (conexión, pub/sub, reconexión)
+    ├── BrokerService (broker local Moquette vía MethodChannel)
     ├── AutomationEngine (evaluación de reglas)
     ├── BackgroundService (foreground service Android)
     └── LogService (persistencia Hive)
@@ -169,6 +179,7 @@ La comunicación entre el **foreground service** (isolate background) y la **UI*
 | `url_launcher` | Abrir URLs/apps externas |
 | `permission_handler` | Gestión de permisos Android |
 | `flutter_secure_storage` | Almacenamiento seguro (futuro) |
+| `moquette-broker` | Broker MQTT embebido (nativo Android) |
 
 ---
 
@@ -188,7 +199,7 @@ La comunicación entre el **foreground service** (isolate background) y la **UI*
 
 ## 🗺️ Roadmap
 
-- [ ] Broker MQTT local embebido (Moquette vía MethodChannel)
+- [x] Broker MQTT local embebido (Moquette vía MethodChannel)
 - [ ] Cifrado de credenciales con `flutter_secure_storage`
 - [ ] Icon picker para botones del dashboard
 - [ ] Export/Import de configuración (JSON)

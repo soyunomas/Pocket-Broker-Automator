@@ -62,12 +62,26 @@ class AutomationEngine {
   }
 
   void _evaluateMessage(ReceivedMqttMessage message) {
-    for (final rule in _rules) {
+    // Snapshot the list so concurrent modifications don't skip rules
+    final snapshot = List<AutomationRule>.of(_rules);
+    _logService.log('system',
+        'Evaluando mensaje: ${message.topic} = "${message.payload}" contra ${snapshot.where((r) => r.enabled).length} reglas activas');
+    int matched = 0;
+    for (final rule in snapshot) {
       if (!rule.enabled) continue;
       if (!_topicMatches(rule.topic, message.topic)) continue;
-      if (_conditionMatches(rule.condition, message.payload)) {
+      final condResult = _conditionMatches(rule.condition, message.payload);
+      _logService.log('system',
+          'Regla "${rule.name}" [${rule.condition.type}="${rule.condition.value}"] → ${condResult ? "MATCH" : "no match"}');
+      if (condResult) {
+        matched++;
         _executeActions(rule);
       }
+    }
+    if (matched == 0) {
+      _logService.log('system', 'Ninguna regla coincidió para ${message.topic}');
+    } else {
+      _logService.log('system', '$matched regla(s) activada(s) para ${message.topic}');
     }
   }
 
@@ -162,19 +176,21 @@ class AutomationEngine {
 
       case 'intent':
         final urlStr = action.params['url'] ?? '';
-        if (urlStr.isNotEmpty) {
-          if (_onIntentAction != null) {
-            // Delegate to UI isolate which has Activity context
-            _onIntentAction!(urlStr);
-            _logService.log('action', 'URL enviada a UI: $urlStr');
-          } else {
-            try {
-              final uri = Uri.parse(urlStr);
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-              _logService.log('action', 'URL abierta: $urlStr');
-            } catch (e) {
-              _logService.log('error', 'Error abriendo URL: $urlStr → $e');
-            }
+        if (urlStr.isEmpty) {
+          _logService.log('error', 'Intent: URL vacía, no se puede abrir');
+          return;
+        }
+        _logService.log('action', 'Intent: preparando apertura de URL: $urlStr');
+        if (_onIntentAction != null) {
+          _logService.log('action', 'Intent: delegando a callback (notificación + IPC)');
+          _onIntentAction!(urlStr);
+        } else {
+          try {
+            final uri = Uri.parse(urlStr);
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+            _logService.log('action', 'Intent: URL abierta directamente: $urlStr');
+          } catch (e) {
+            _logService.log('error', 'Intent: error abriendo URL: $urlStr → $e');
           }
         }
         break;

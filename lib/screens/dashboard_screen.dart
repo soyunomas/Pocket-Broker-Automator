@@ -151,9 +151,31 @@ class DashboardScreen extends StatelessWidget {
                   controller: payloadCtrl,
                   decoration: const InputDecoration(labelText: 'Payload'),
                 ),
-                TextField(
-                  controller: colorCtrl,
-                  decoration: const InputDecoration(labelText: 'Color (#HEX)'),
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await _showColorPicker(ctx, colorCtrl.text);
+                    if (picked != null) {
+                      setState(() => colorCtrl.text = picked);
+                    }
+                  },
+                  child: AbsorbPointer(
+                    child: TextField(
+                      controller: colorCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Color (#HEX)',
+                        prefixIcon: Container(
+                          margin: const EdgeInsets.all(10),
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: _parseColor(colorCtrl.text),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.white38),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 DropdownButtonFormField<int>(
                   value: qos,
@@ -208,6 +230,85 @@ class DashboardScreen extends StatelessWidget {
                 Navigator.pop(ctx);
               },
               child: Text(isEditing ? 'Guardar' : 'Crear'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _showColorPicker(BuildContext context, String currentHex) {
+    const presetColors = [
+      '#F44336', '#E91E63', '#9C27B0', '#673AB7',
+      '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+      '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
+      '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
+      '#795548', '#9E9E9E', '#607D8B', '#000000',
+    ];
+    final hexCtrl = TextEditingController(text: currentHex);
+
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Elegir color'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                ),
+                itemCount: presetColors.length,
+                itemBuilder: (_, i) {
+                  final c = presetColors[i];
+                  final selected = c.toUpperCase() == hexCtrl.text.toUpperCase();
+                  return GestureDetector(
+                    onTap: () => setState(() => hexCtrl.text = c),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _parseColor(c),
+                        borderRadius: BorderRadius.circular(8),
+                        border: selected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : Border.all(color: Colors.white24),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: hexCtrl,
+                decoration: InputDecoration(
+                  labelText: 'HEX',
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(10),
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: _parseColor(hexCtrl.text),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white38),
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, hexCtrl.text),
+              child: const Text('Aceptar'),
             ),
           ],
         ),

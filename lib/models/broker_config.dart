@@ -19,11 +19,19 @@ class BrokerConfig extends HiveObject {
   @HiveField(4)
   String password;
 
+  @HiveField(5)
+  bool wsEnabled;
+
+  @HiveField(6)
+  int wsPort;
+
   BrokerConfig({
     this.enabled = false,
     this.port = 1883,
     this.authEnabled = false,
     this.username = '',
     this.password = '',
+    this.wsEnabled = false,
+    this.wsPort = 8083,
   });
 }

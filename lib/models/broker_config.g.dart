@@ -22,13 +22,15 @@ class BrokerConfigAdapter extends TypeAdapter<BrokerConfig> {
       authEnabled: fields[2] as bool,
       username: fields[3] as String,
       password: fields[4] as String,
+      wsEnabled: fields[5] as bool? ?? false,
+      wsPort: fields[6] as int? ?? 8083,
     );
   }
 
   @override
   void write(BinaryWriter writer, BrokerConfig obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.enabled)
       ..writeByte(1)
@@ -38,7 +40,11 @@ class BrokerConfigAdapter extends TypeAdapter<BrokerConfig> {
       ..writeByte(3)
       ..write(obj.username)
       ..writeByte(4)
-      ..write(obj.password);
+      ..write(obj.password)
+      ..writeByte(5)
+      ..write(obj.wsEnabled)
+      ..writeByte(6)
+      ..write(obj.wsPort);
   }
 
   @override

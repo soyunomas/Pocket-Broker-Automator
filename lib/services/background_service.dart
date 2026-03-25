@@ -8,12 +8,15 @@ import '../models/dashboard_button.dart';
 import '../models/automation_rule.dart';
 import '../models/log_entry.dart';
 import '../models/broker_config.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'mqtt_client_service.dart';
 import 'log_service.dart';
 import 'automation_engine.dart';
 
 const notificationChannelId = 'pocket_broker_foreground';
 const notificationId = 888;
+const urlNotificationChannelId = 'pocket_broker_url_actions';
+int _urlNotificationId = 9000;
 
 class BackgroundServiceController {
   static final _service = FlutterBackgroundService();
@@ -136,19 +139,54 @@ Future<void> _onStart(ServiceInstance service) async {
   await Hive.initFlutter();
   _registerAdapters();
 
-  // Create services
+  // Create services (logService first so notification callbacks can use it)
   final mqtt = MqttClientService();
   final logService = LogService();
   await logService.init();
+
+  // Create URL notification channel for clickable URL notifications
+  final notifPlugin = FlutterLocalNotificationsPlugin();
+  await notifPlugin.initialize(
+    const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    ),
+    onDidReceiveNotificationResponse: (response) async {
+      final url = response.payload;
+      logService.log('action', 'Notificación tocada, payload: $url');
+      if (url != null && url.isNotEmpty) {
+        try {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          logService.log('action', 'URL abierta desde notificación: $url');
+        } catch (e) {
+          logService.log('error', 'Error abriendo URL desde notificación: $url → $e');
+        }
+      } else {
+        logService.log('error', 'Notificación sin URL en payload');
+      }
+    },
+  );
+  await notifPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(const AndroidNotificationChannel(
+        urlNotificationChannelId,
+        'Acciones URL',
+        description: 'Notificaciones con URLs de reglas de automatización',
+        importance: Importance.high,
+      ));
+
   final engine = AutomationEngine(mqtt, logService);
 
   // Load saved rules and start engine
   final rulesBox = await Hive.openBox<AutomationRule>('automation_rules');
   engine.loadRules(rulesBox.values.toList());
 
-  // Delegate intent/URL actions to UI isolate (background can't launch URLs)
+  // Delegate intent/URL actions: try UI first, also show notification as fallback
   engine.onIntentAction = (url) {
+    logService.log('action', 'Background: enviando launchUrl IPC a UI: $url');
     service.invoke('launchUrl', {'url': url});
+    logService.log('action', 'Background: mostrando notificación clickable para: $url');
+    _showUrlNotification(notifPlugin, url, logService);
   };
 
   engine.start();
@@ -294,6 +332,32 @@ Future<void> _onStart(ServiceInstance service) async {
           'Keep-alive check: desconectado de ${profile.alias}, reconexión pendiente');
     }
   });
+}
+
+Future<void> _showUrlNotification(
+    FlutterLocalNotificationsPlugin plugin, String url, LogService logService) async {
+  final id = _urlNotificationId++;
+  try {
+    await plugin.show(
+      id,
+      'Abrir URL',
+      url,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          urlNotificationChannelId,
+          'Acciones URL',
+          channelDescription: 'Notificaciones con URLs de reglas de automatización',
+          importance: Importance.high,
+          priority: Priority.high,
+          autoCancel: true,
+        ),
+      ),
+      payload: url,
+    );
+    logService.log('action', 'Notificación URL mostrada (id=$id): $url');
+  } catch (e) {
+    logService.log('error', 'Error mostrando notificación URL: $url → $e');
+  }
 }
 
 void _registerAdapters() {
