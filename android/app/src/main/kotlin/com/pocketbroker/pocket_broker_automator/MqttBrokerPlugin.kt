@@ -36,7 +36,9 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
                 val authEnabled = call.argument<Boolean>("authEnabled") ?: false
                 val username = call.argument<String>("username") ?: ""
                 val pwd = call.argument<String>("password") ?: ""
-                startServer(port, authEnabled, username, pwd, result)
+                val wsEnabled = call.argument<Boolean>("wsEnabled") ?: false
+                val wsPort = call.argument<Int>("wsPort") ?: 8083
+                startServer(port, authEnabled, username, pwd, wsEnabled, wsPort, result)
             }
             "stopBroker" -> {
                 stopServer()
@@ -54,6 +56,8 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         authEnabled: Boolean,
         username: String,
         pwd: String,
+        wsEnabled: Boolean,
+        wsPort: Int,
         result: MethodChannel.Result
     ) {
         try {
@@ -71,6 +75,11 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             props.setProperty("persistent_store", storeFile)
             props.setProperty("data_path", dataDir)
 
+            if (wsEnabled) {
+                props.setProperty("websocket_port", wsPort.toString())
+                props.setProperty("websocket_path", "/mqtt")
+            }
+
             val config = MemoryConfig(props)
             server = Server()
 
@@ -82,7 +91,8 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             }
 
             val ips = getDeviceIps()
-            Log.i(TAG, "Broker started on port $port (auth=$authEnabled) IPs=$ips")
+            val wsInfo = if (wsEnabled) " + WS:$wsPort" else ""
+            Log.i(TAG, "Broker started on port $port$wsInfo (auth=$authEnabled) IPs=$ips")
             result.success(mapOf("success" to true, "ips" to ips))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start broker: ${e.message}", e)
