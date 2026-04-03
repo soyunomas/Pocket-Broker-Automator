@@ -151,28 +151,26 @@ class DashboardScreen extends StatelessWidget {
                   controller: payloadCtrl,
                   decoration: const InputDecoration(labelText: 'Payload'),
                 ),
-                GestureDetector(
+                TextField(
+                  controller: colorCtrl,
+                  readOnly: true,
                   onTap: () async {
                     final picked = await _showColorPicker(ctx, colorCtrl.text);
                     if (picked != null) {
-                      setState(() => colorCtrl.text = picked);
+                      colorCtrl.text = picked;
+                      setState(() {});
                     }
                   },
-                  child: AbsorbPointer(
-                    child: TextField(
-                      controller: colorCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Color (#HEX)',
-                        prefixIcon: Container(
-                          margin: const EdgeInsets.all(10),
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: _parseColor(colorCtrl.text),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white38),
-                          ),
-                        ),
+                  decoration: InputDecoration(
+                    labelText: 'Color (#HEX)',
+                    prefixIcon: Container(
+                      margin: const EdgeInsets.all(10),
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: _parseColor(colorCtrl.text),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white38),
                       ),
                     ),
                   ),
@@ -252,54 +250,58 @@ class DashboardScreen extends StatelessWidget {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           title: const Text('Elegir color'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
+          // FIX: Limitamos el ancho a double.maxFinite para evitar layout errors en el GridView
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  itemCount: presetColors.length,
+                  itemBuilder: (_, i) {
+                    final c = presetColors[i];
+                    final selected = c.toUpperCase() == hexCtrl.text.toUpperCase();
+                    return GestureDetector(
+                      onTap: () => setState(() => hexCtrl.text = c),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _parseColor(c),
+                          borderRadius: BorderRadius.circular(8),
+                          border: selected
+                              ? Border.all(color: Colors.white, width: 3)
+                              : Border.all(color: Colors.white24),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                itemCount: presetColors.length,
-                itemBuilder: (_, i) {
-                  final c = presetColors[i];
-                  final selected = c.toUpperCase() == hexCtrl.text.toUpperCase();
-                  return GestureDetector(
-                    onTap: () => setState(() => hexCtrl.text = c),
-                    child: Container(
+                const SizedBox(height: 16),
+                TextField(
+                  controller: hexCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'HEX',
+                    prefixIcon: Container(
+                      margin: const EdgeInsets.all(10),
+                      width: 24,
+                      height: 24,
                       decoration: BoxDecoration(
-                        color: _parseColor(c),
-                        borderRadius: BorderRadius.circular(8),
-                        border: selected
-                            ? Border.all(color: Colors.white, width: 3)
-                            : Border.all(color: Colors.white24),
+                        color: _parseColor(hexCtrl.text),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white38),
                       ),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: hexCtrl,
-                decoration: InputDecoration(
-                  labelText: 'HEX',
-                  prefixIcon: Container(
-                    margin: const EdgeInsets.all(10),
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: _parseColor(hexCtrl.text),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white38),
-                    ),
                   ),
+                  onChanged: (_) => setState(() {}),
                 ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(

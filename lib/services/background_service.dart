@@ -8,6 +8,8 @@ import '../models/dashboard_button.dart';
 import '../models/automation_rule.dart';
 import '../models/log_entry.dart';
 import '../models/broker_config.dart';
+import '../models/monitor_widget.dart';
+import '../models/sensor_reading.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'mqtt_client_service.dart';
 import 'log_service.dart';
@@ -116,6 +118,10 @@ class BackgroundServiceController {
     _service.invoke('updateRules', {'rules': rulesJson});
   }
 
+  static void syncSubscriptions() {
+    _service.invoke('syncSubscriptions');
+  }
+
   static void requestState() {
     _service.invoke('requestState');
   }
@@ -177,9 +183,18 @@ Future<void> _onStart(ServiceInstance service) async {
 
   final engine = AutomationEngine(mqtt, logService);
 
-  // Load saved rules and start engine
+  // Load saved monitor widgets and subscribe to their topics
+  final monitorBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
+  final monitorTopics = monitorBox.values.map((w) => w.topic).toSet();
+  for (final topic in monitorTopics) {
+    mqtt.subscribe(topic);
+  }
+  logService.log('system',
+      'Suscrito a ${monitorTopics.length} topics de monitores al iniciar');
+
+  // Load saved rules and start engine (protect monitor topics)
   final rulesBox = await Hive.openBox<AutomationRule>('automation_rules');
-  engine.loadRules(rulesBox.values.toList());
+  engine.loadRules(rulesBox.values.toList(), protectedTopics: monitorTopics);
 
   // Delegate intent/URL actions: try UI first, also show notification as fallback
   engine.onIntentAction = (url) {
@@ -191,9 +206,22 @@ Future<void> _onStart(ServiceInstance service) async {
 
   engine.start();
 
-  // Forward connection state to UI
+  // Forward connection state to UI and re-subscribe all topics on reconnect
   mqtt.connectionStateStream.listen((state) {
     service.invoke('connectionState', {'state': state.name});
+
+    // When connection is (re)established, ensure monitor widget topics are subscribed
+    // (rule topics are handled by the AutomationEngine's own listener)
+    if (state == ClientConnectionState.connected) {
+      try {
+        final mBox = Hive.box<MonitorWidget>('monitor_widgets');
+        for (final w in mBox.values) {
+          mqtt.subscribe(w.topic);
+        }
+      } catch (_) {
+        // Box might not be open yet during initial startup
+      }
+    }
 
     // Update notification
     if (service is AndroidServiceInstance) {
@@ -286,9 +314,53 @@ Future<void> _onStart(ServiceInstance service) async {
     await box.close();
     final freshBox = await Hive.openBox<AutomationRule>('automation_rules');
     final rules = freshBox.values.toList();
-    engine.loadRules(rules);
+
+    // Collect monitor widget topics as protected (don't unsubscribe them)
+    Set<String> currentMonitorTopics = {};
+    try {
+      final mBox = Hive.box<MonitorWidget>('monitor_widgets');
+      currentMonitorTopics = mBox.values.map((w) => w.topic).toSet();
+    } catch (_) {}
+
+    engine.loadRules(rules, protectedTopics: currentMonitorTopics);
     logService.log('system',
         'Reglas actualizadas: ${rules.where((r) => r.enabled).length} activas');
+  });
+
+  // Sync all subscriptions (monitor widgets + rules) — triggered by UI
+  service.on('syncSubscriptions').listen((_) async {
+    // Re-read monitor widgets
+    try {
+      final mBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
+      await mBox.close();
+      final freshMBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
+      final mTopics = freshMBox.values.map((w) => w.topic).toSet();
+      for (final topic in mTopics) {
+        mqtt.subscribe(topic);
+      }
+      logService.log('system',
+          'syncSubscriptions: ${mTopics.length} topics de monitores sincronizados');
+    } catch (e) {
+      logService.log('error', 'syncSubscriptions: error leyendo monitores: $e');
+    }
+
+    // Re-read rules
+    try {
+      final rBox = await Hive.openBox<AutomationRule>('automation_rules');
+      await rBox.close();
+      final freshRBox = await Hive.openBox<AutomationRule>('automation_rules');
+      final rules = freshRBox.values.toList();
+      Set<String> currentMonitorTopics = {};
+      try {
+        final mBox = Hive.box<MonitorWidget>('monitor_widgets');
+        currentMonitorTopics = mBox.values.map((w) => w.topic).toSet();
+      } catch (_) {}
+      engine.loadRules(rules, protectedTopics: currentMonitorTopics);
+      logService.log('system',
+          'syncSubscriptions: ${rules.where((r) => r.enabled).length} reglas activas');
+    } catch (e) {
+      logService.log('error', 'syncSubscriptions: error leyendo reglas: $e');
+    }
   });
 
   service.on('requestState').listen((_) {
@@ -381,5 +453,11 @@ void _registerAdapters() {
   }
   if (!Hive.isAdapterRegistered(6)) {
     Hive.registerAdapter(BrokerConfigAdapter());
+  }
+  if (!Hive.isAdapterRegistered(7)) {
+    Hive.registerAdapter(MonitorWidgetAdapter());
+  }
+  if (!Hive.isAdapterRegistered(8)) {
+    Hive.registerAdapter(SensorReadingAdapter());
   }
 }

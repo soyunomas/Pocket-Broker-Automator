@@ -10,6 +10,7 @@ class AutomationEngine {
   final MqttClientService _mqttService;
   final LogService _logService;
   final List<AutomationRule> _rules = [];
+  final Set<String> _subscribedRuleTopics = {};
   StreamSubscription<ReceivedMqttMessage>? _messageSubscription;
   StreamSubscription<ClientConnectionState>? _connectionSubscription;
 
@@ -22,9 +23,26 @@ class AutomationEngine {
   set onIntentAction(void Function(String url)? callback) =>
       _onIntentAction = callback;
 
-  void loadRules(List<AutomationRule> rules) {
+  void loadRules(List<AutomationRule> rules, {Set<String>? protectedTopics}) {
+    // Compute new topics needed by enabled rules
+    final newTopics = rules
+        .where((r) => r.enabled)
+        .map((r) => r.topic)
+        .toSet();
+
+    // Unsubscribe topics no longer needed by any enabled rule
+    // but only if they're not protected (e.g. used by monitor widgets)
+    final toRemove = _subscribedRuleTopics.difference(newTopics);
+    for (final topic in toRemove) {
+      if (protectedTopics != null && protectedTopics.contains(topic)) continue;
+      _mqttService.unsubscribe(topic);
+    }
+
     _rules.clear();
     _rules.addAll(rules);
+    _subscribedRuleTopics
+      ..clear()
+      ..addAll(newTopics);
     _subscribeToRuleTopics();
   }
 

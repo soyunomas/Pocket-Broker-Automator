@@ -12,9 +12,7 @@ PocketBroker Automator actúa como cliente MQTT avanzado, motor de automatizaci�
 
 ## 📥 Descarga
 
-El APK de la versión *release* está disponible en la sección de **[Releases](https://github.com/soyunomas/Pocket-Broker-Automator/releases)** de este repositorio.
-
-Descárgalo desde allí e instálalo directamente en tu dispositivo Android.
+El APK release compilado está disponible en la carpeta [`app/`](app/app-release.apk). Descárgalo e instálalo directamente en tu dispositivo Android.
 
 ---
 
@@ -25,6 +23,7 @@ Descárgalo desde allí e instálalo directamente en tu dispositivo Android.
 - 📡 **Broker MQTT local** — Broker embebido (Moquette) con start/stop dinámico, puerto configurable y autenticación básica
 - 🤖 **Motor de automatización** — Reglas trigger/acción sobre mensajes MQTT en tiempo real
 - 🎛️ **Panel de control** — Botones configurables para publicar en topics MQTT
+- 📊 **Panel de Monitoreo** — Visualización de datos en tiempo real e históricos con widgets ajustables (Gauges, Gráficas, Contadores, Barras, Logs)
 - 📋 **Logs** — Registro persistente de mensajes, acciones y errores con filtros
 - 🔔 **Background Service** — Foreground service Android para operación 24/7
 - 🌙 **Modo oscuro** — Material 3 dark theme
@@ -118,7 +117,9 @@ lib/
 │   ├── dashboard_button.dart
 │   ├── automation_rule.dart
 │   ├── log_entry.dart
-│   └── broker_config.dart
+│   ├── broker_config.dart
+│   ├── monitor_widget.dart
+│   └── sensor_reading.dart
 ├── services/                 # Lógica de negocio
 │   ├── mqtt_client_service.dart    # Cliente MQTT + reconexión
 │   ├── broker_service.dart         # Broker local (MethodChannel)
@@ -130,15 +131,18 @@ lib/
 │   ├── dashboard_provider.dart
 │   ├── automation_provider.dart
 │   ├── broker_provider.dart
+│   ├── monitor_provider.dart
 │   └── log_provider.dart
 ├── screens/                  # Pantallas UI
 │   ├── home_screen.dart
 │   ├── connections_screen.dart
 │   ├── dashboard_screen.dart
 │   ├── automations_screen.dart
+│   ├── monitor_screen.dart
 │   ├── logs_screen.dart
 │   └── broker_screen.dart
 └── utils/                    # Utilidades
+    └── chart_painters.dart   # Dibujo de gráficas en canvas
 ```
 
 ---
@@ -161,7 +165,7 @@ lib/
 ```
 
 La comunicación entre el **foreground service** (isolate background) y la **UI** se realiza mediante IPC bidireccional de `flutter_background_service`:
-- UI → Service: `connect`, `disconnect`, `publish`, `subscribe`, `updateRules`
+- UI → Service: `connect`, `disconnect`, `publish`, `subscribe`, `unsubscribe`, `updateRules`, `syncSubscriptions`, `requestState`
 - Service → UI: `connectionState`, `message`, `launchUrl`
 
 ---

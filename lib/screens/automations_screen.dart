@@ -201,6 +201,7 @@ class AutomationsScreen extends StatelessWidget {
     String type = 'publish';
     final param1Ctrl = TextEditingController();
     final param2Ctrl = TextEditingController();
+    String webhookMethod = 'GET';
 
     showDialog(
       context: context,
@@ -221,6 +222,16 @@ class AutomationsScreen extends StatelessWidget {
                 ],
                 onChanged: (v) => setDialogState(() => type = v ?? 'publish'),
               ),
+              if (type == 'webhook')
+                DropdownButtonFormField<String>(
+                  value: webhookMethod,
+                  decoration: const InputDecoration(labelText: 'Método HTTP'),
+                  items: const [
+                    DropdownMenuItem(value: 'GET', child: Text('GET')),
+                    DropdownMenuItem(value: 'POST', child: Text('POST')),
+                  ],
+                  onChanged: (v) => setDialogState(() => webhookMethod = v ?? 'GET'),
+                ),
               if (type == 'sound')
                 Row(
                   children: [
@@ -287,7 +298,7 @@ class AutomationsScreen extends StatelessWidget {
                   case 'webhook':
                     params = {
                       'url': param1Ctrl.text,
-                      'method': 'POST',
+                      'method': webhookMethod,
                       'body': param2Ctrl.text,
                     };
                     break;
