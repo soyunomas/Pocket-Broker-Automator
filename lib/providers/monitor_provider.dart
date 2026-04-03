@@ -74,28 +74,48 @@ class MonitorProvider extends ChangeNotifier {
     }
   }
 
-  void _onMessage(String topic, String payload) {
-    // Check if any widget monitors this topic
-    final hasWidget = _widgets.any((w) => w.topic == topic);
-    if (!hasWidget) return;
+  void _onMessage(String incomingTopic, String payload) {
+    // Find all widgets that match this topic (handling wildcards)
+    final matchingWidgets = _widgets.where((w) => _topicMatches(w.topic, incomingTopic)).toList();
+    if (matchingWidgets.isEmpty) return;
 
     final now = DateTime.now();
-    _latestValues[topic] = payload;
-    _latestTimestamps[topic] = now;
 
-    // Store reading
-    final reading = SensorReading(topic: topic, value: payload);
-    _readingsBox?.add(reading);
+    for (final w in matchingWidgets) {
+      // For log widgets using wildcards, show the source topic
+      final isWildcardLog = (w.topic.contains('#') || w.topic.contains('+')) && w.type == 'log';
+      final displayPayload = isWildcardLog ? '$incomingTopic: $payload' : payload;
 
-    // Update cache
-    final cache = _readingsCache.putIfAbsent(topic, () => []);
-    cache.add(reading);
-    if (cache.length > _maxCachedReadings) {
-      cache.removeAt(0);
+      _latestValues[w.topic] = displayPayload;
+      _latestTimestamps[w.topic] = now;
+
+      // Store reading
+      final reading = SensorReading(topic: w.topic, value: displayPayload);
+      _readingsBox?.add(reading);
+
+      // Update cache
+      final cache = _readingsCache.putIfAbsent(w.topic, () => []);
+      cache.add(reading);
+      if (cache.length > _maxCachedReadings) {
+        cache.removeAt(0);
+      }
     }
 
     _trimStoredReadings();
     notifyListeners();
+  }
+
+  bool _topicMatches(String ruleTopic, String messageTopic) {
+    if (ruleTopic == messageTopic) return true;
+    final ruleParts = ruleTopic.split('/');
+    final msgParts = messageTopic.split('/');
+    for (var i = 0; i < ruleParts.length; i++) {
+      if (ruleParts[i] == '#') return true;
+      if (i >= msgParts.length) return false;
+      if (ruleParts[i] == '+') continue;
+      if (ruleParts[i] != msgParts[i]) return false;
+    }
+    return ruleParts.length == msgParts.length;
   }
 
   void _trimStoredReadings() {

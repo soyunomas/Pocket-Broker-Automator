@@ -50,7 +50,10 @@ Ve a la pestaña **Panel (Dashboard)**, pulsa en el botón `+` y vamos a crear a
 - **Color:** Rojo `#F44336`
 
 > 💡 **Cómo probar que los botones envían bien:** 
-> Vete a la pantalla de **Monitor (Consola)** y añade el filtro de topic `prueba/#`. Al hacer esto, todo lo que empiece por prueba te aparecerá en un log en vivo. Vuelve a tus botones, tócalos y mira cómo en el Monitor aparece al instante todo lo que envías.
+> Vete a la vista **Monitor** (arriba a la izquierda desde el Panel) y pulsa el botón **`+`** para crear un visualizador nuevo.
+> - Selecciona el tipo **Historial texto**.
+> - Ponle de Topic `prueba/#` (el # actúa como comodín para atrapar todo lo de esa ruta).
+> - Guarda el widget. Ahora, vuelve a la vista de "Controles", pulsa tus botones y regresa al Monitor: verás un historial en vivo de todo lo que has enviado.
 
 ---
 
