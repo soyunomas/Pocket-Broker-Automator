@@ -10,12 +10,15 @@ import 'models/dashboard_button.dart';
 import 'models/automation_rule.dart';
 import 'models/log_entry.dart';
 import 'models/broker_config.dart';
+import 'models/monitor_widget.dart';
+import 'models/sensor_reading.dart';
 
 import 'services/log_service.dart';
 import 'services/background_service.dart';
 
 import 'providers/connection_provider.dart';
 import 'providers/dashboard_provider.dart';
+import 'providers/monitor_provider.dart';
 import 'providers/automation_provider.dart';
 import 'providers/log_provider.dart';
 import 'providers/broker_provider.dart';
@@ -34,6 +37,8 @@ void main() async {
   Hive.registerAdapter(AutomationRuleAdapter());
   Hive.registerAdapter(LogEntryAdapter());
   Hive.registerAdapter(BrokerConfigAdapter());
+  Hive.registerAdapter(MonitorWidgetAdapter());
+  Hive.registerAdapter(SensorReadingAdapter());
 
   // Request notification permission early (Android 13+)
   final notifStatus = await Permission.notification.status;
@@ -103,6 +108,9 @@ class _PocketBrokerAppState extends State<PocketBrokerApp> {
         ChangeNotifierProvider(
           create: (_) =>
               DashboardProvider(logService: widget.logService)..init(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => MonitorProvider()..init(),
         ),
         ChangeNotifierProvider(
           create: (_) => AutomationProvider()..init(),

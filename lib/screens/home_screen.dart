@@ -4,9 +4,13 @@ import '../providers/connection_provider.dart';
 import '../services/mqtt_client_service.dart';
 import 'connections_screen.dart';
 import 'dashboard_screen.dart';
+import 'monitor_screen.dart';
 import 'automations_screen.dart';
 import 'logs_screen.dart';
 import 'broker_screen.dart';
+
+// Cambiamos el orden para que monitor sea el primero lógicamente
+enum _PanelMode { monitor, controles }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,14 +21,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-
-  final _screens = const [
-    DashboardScreen(),
-    ConnectionsScreen(),
-    BrokerScreen(),
-    AutomationsScreen(),
-    LogsScreen(),
-  ];
+  // Inicializamos en Monitor por defecto
+  _PanelMode _panelMode = _PanelMode.monitor;
 
   final _titles = const [
     'Panel',
@@ -46,9 +44,52 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? Colors.orangeAccent
                 : Colors.redAccent;
 
+        Widget body;
+        if (_currentIndex == 0) {
+          // Cambiamos la condición de dibujado
+          body = _panelMode == _PanelMode.monitor
+              ? const MonitorScreen()
+              : const DashboardScreen();
+        } else {
+          const screens = [
+            SizedBox.shrink(), // placeholder, never shown
+            ConnectionsScreen(),
+            BrokerScreen(),
+            AutomationsScreen(),
+            LogsScreen(),
+          ];
+          body = screens[_currentIndex];
+        }
+
         return Scaffold(
           appBar: AppBar(
-            title: Text(_titles[_currentIndex]),
+            title: _currentIndex == 0
+                ? SizedBox(
+                    height: 32,
+                    child: SegmentedButton<_PanelMode>(
+                      // Invertimos el orden visual de los botones
+                      segments: const [
+                        ButtonSegment(
+                          value: _PanelMode.monitor,
+                          label: Text('Monitor', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.monitor_heart, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: _PanelMode.controles,
+                          label: Text('Controles', style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.touch_app, size: 16),
+                        ),
+                      ],
+                      selected: {_panelMode},
+                      onSelectionChanged: (s) =>
+                          setState(() => _panelMode = s.first),
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  )
+                : Text(_titles[_currentIndex]),
             actions: [
               if (connProvider.serviceRunning)
                 const Padding(
@@ -80,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          body: _screens[_currentIndex],
+          body: body,
           bottomNavigationBar: NavigationBar(
             selectedIndex: _currentIndex,
             onDestinationSelected: (i) => setState(() => _currentIndex = i),

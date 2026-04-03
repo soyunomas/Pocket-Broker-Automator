@@ -1,222 +1,118 @@
-# 📘 Ejemplos de Automatización — PocketBroker Automator
+# 📘 Guía de Inicio y Ejemplos — PocketBroker Automator
 
-## 🔗 Webhooks
-
-### Servicios de prueba (no requieren registro)
-
-| Servicio | URL | Descripción |
-|----------|-----|-------------|
-| [httpbin.org](https://httpbin.org) | `https://httpbin.org/get` | Devuelve los datos de tu petición como JSON |
-| [webhook.site](https://webhook.site) | Genera una URL única | Inspecciona peticiones en tiempo real |
-| [httpstat.us](https://httpstat.us) | `https://httpstat.us/200` | Devuelve el código HTTP que pidas |
-
-#### Ejemplo 1: Webhook GET simple
-- **URL:** `https://httpbin.org/get`
-- **Method:** GET
-- En los logs verás `Webhook GET → 200`
-
-#### Ejemplo 2: Webhook POST con body
-- **URL:** `https://httpbin.org/post`
-- **Method:** POST
-- **Body:** `{"sensor": "temperatura", "valor": 22.5}`
-- httpbin te devuelve un JSON con lo que enviaste
-
-#### Ejemplo 3: webhook.site (ver peticiones en tiempo real)
-1. Entra en https://webhook.site desde el navegador
-2. Copia la URL única que te genera (ej: `https://webhook.site/abc-123-...`)
-3. Usa esa URL en la acción webhook
-4. Cada vez que se dispare la regla, verás la petición en la web
-
-### Servicios reales (requieren cuenta)
-
-#### IFTTT (If This Then That)
-1. Crea un applet con trigger "Webhooks"
-2. Tu URL será: `https://maker.ifttt.com/trigger/{evento}/with/key/{tu_key}`
-3. Puedes encadenar con cualquier acción IFTTT (email, smart home, etc.)
-- **Method:** POST
-- **Body:** `{"value1": "sensor1", "value2": "25°C"}`
-
-#### Home Assistant
-- **URL:** `http://TU_IP:8123/api/webhook/{webhook_id}`
-- **Method:** POST
-- **Body:** `{"action": "turn_on", "entity": "light.salon"}`
-
-#### Ntfy.sh (notificaciones push gratuitas)
-- **URL:** `https://ntfy.sh/mi-topic-secreto`
-- **Method:** POST
-- **Body:** `Alerta: sensor activado`
-- Instala la app [ntfy](https://ntfy.sh) en otro móvil para recibir las notificaciones
-
-#### Pushover
-- **URL:** `https://api.pushover.net/1/messages.json`
-- **Method:** POST
-- **Body:** `{"token":"APP_TOKEN","user":"USER_KEY","message":"Sensor activado"}`
+Esta guía te enseñará paso a paso cómo probar la aplicación desde cero. 
+Lo principal que debes entender es que PocketBroker funciona mediante mensajes **MQTT**: nos conectamos a un servidor (Broker), enviamos mensajes (mediante Paneles/Botones) y reaccionamos a mensajes (mediante Automatizaciones).
 
 ---
 
-## 📱 URL / Abrir App (Intent)
+## 1️⃣ Primer Paso: Conectarse a un Broker MQTT
 
-**Sí, se pueden abrir apps del teléfono** usando URL schemes y deep links.
-Android asocia esquemas de URL con apps instaladas. Si la app está instalada, se abre directamente.
+Para poder enviar o recibir información, necesitas conectarte a un "Broker". Este actúa como el intermediario central que reparte los mensajes.
 
-### Apps comunes
+**Ejemplo de conexión con un broker público gratuito:**
+1. Ve a la pestaña **Ajustes de Conexión** o la pantalla principal donde visualices tus conexiones.
+2. Pulsa en el botón **`+`** para añadir un nuevo broker remoto.
+3. Rellena los datos así:
+   - **Nombre:** `Broker de Prueba`
+   - **Host / IP:** `mqtt.tyckr.io` (o también puedes probar `broker.hivemq.com` / `test.mosquitto.org`)
+   - **Puerto:** `1883`
+   - **Cliente ID:** Déjalo por defecto o inventa un número al azar.
+   - *Nota: No hace falta ni usuario ni contraseña para estos brokers de prueba públicos.*
+4. Guarda y activa la conexión. Sabrás que estás correctamente operativo cuando el indicador esté vinculado y en verde.
 
-| App | URL | Qué hace |
-|-----|-----|----------|
-| **Navegador** | `https://google.com` | Abre una web |
-| **Teléfono** | `tel:+34612345678` | Abre el marcador con el número |
-| **SMS** | `sms:+34612345678?body=Hola` | Abre SMS con texto prellenado |
-| **Email** | `mailto:test@example.com?subject=Alerta&body=Sensor%20activado` | Abre cliente de correo |
-| **WhatsApp** | `https://wa.me/34612345678?text=Alerta%20sensor` | Abre chat de WhatsApp |
-| **Telegram** | `tg://msg?to=username&text=Hola` | Abre chat de Telegram |
-| **Google Maps** | `geo:40.4168,-3.7038?q=Madrid` | Abre Maps en coordenadas |
-| **Google Maps** | `https://maps.google.com/?q=40.4168,-3.7038` | Navegación a punto |
-| **YouTube** | `https://youtube.com/watch?v=dQw4w9WgXcQ` | Abre vídeo en app YouTube |
-| **Spotify** | `spotify:track:4cOdK2wGLETKBW3PvgPWqT` | Abre canción en Spotify |
-| **Spotify** | `spotify:playlist:37i9dQZF1DXcBWIGoYBM5M` | Abre playlist |
-| **Instagram** | `https://instagram.com/_u/username` | Abre perfil en Instagram |
-| **Twitter/X** | `https://twitter.com/username` | Abre perfil en X |
-| **Google Home** | `googlehome://` | Abre Google Home |
-| **Ajustes WiFi** | `App-Prefs:WIFI` (iOS) | *(Solo iOS)* |
-
-### Ejemplos prácticos de automatización
-
-#### 🚨 Alarma: llamar a un número
-```
-Topic:   casa/alarma/estado
-Valor:   intrusion
-Acción:  intent → tel:+34612345678
-```
-Al detectar intrusión, abre el marcador listo para llamar.
-
-#### 💬 Notificar por WhatsApp
-```
-Topic:   jardin/riego/estado
-Valor:   completado
-Acción:  intent → https://wa.me/34612345678?text=Riego%20completado
-```
-
-#### 🎵 Ambiente: reproducir playlist
-```
-Topic:   casa/modo
-Valor:   fiesta
-Acción:  intent → spotify:playlist:37i9dQZF1DXcBWIGoYBM5M
-```
-
-#### 📍 Localización: abrir mapa
-```
-Topic:   vehiculo/gps
-Valor:   any
-Acción:  intent → https://maps.google.com/?q=40.4168,-3.7038
-```
-*(En una versión futura se podría usar el payload como coordenadas)*
-
-#### 📧 Email de alerta
-```
-Topic:   servidor/estado
-Valor:   critical
-Acción:  intent → mailto:admin@empresa.com?subject=ALERTA&body=Servidor%20caído
-```
+*(Alternativa: También puedes ir a la pestaña **Broker Local** e iniciar tu broker interno dentro del propio móvil si prefieres que nada salga a internet).*
 
 ---
 
-## 🔁 Combinaciones (múltiples acciones por regla)
+## 2️⃣ Pruebas de Paneles y Botones (Dashboard)
 
-Una sola regla puede tener varias acciones simultáneas:
+El Panel te permite crear botones de control que envían (Publican) un comando a un `Topic` específico en el momento en que los pulsas.
 
-#### Sensor de temperatura alta
-```
-Topic:     invernadero/temp
-Condición: > 40 (usar "contains" con "4" como workaround)
-Acciones:
-  1. sound    → alarma.mp3
-  2. webhook  → POST https://ntfy.sh/mi-invernadero  body: "Temp crítica!"
-  3. publish  → invernadero/ventilador → ON
-  4. intent   → https://wa.me/34612345678?text=Temperatura%20crítica
-```
+Ve a la pestaña **Panel (Dashboard)**, pulsa en el botón `+` y vamos a crear algunos botones de prueba:
 
-#### Timbre de puerta inteligente
-```
-Topic:     casa/timbre
-Condición: equals → pressed
-Acciones:
-  1. sound    → doorbell.mp3
-  2. webhook  → GET https://mi-camara/snapshot
-  3. intent   → https://mi-camara.local/live
-```
+### Ejemplo A: Botón de Encender una Luz
+- **Label (Nombre):** Encender Luz
+- **Topic:** `prueba/casa/luz/salon/estado`
+- **Payload (Mensaje):** `ON`
+- **Color:** Amarillo `#FFEB3B`
+*(La acción de este botón enviará la palabra `ON` textualmente al servidor bajo el canal de la luz).*
 
----
+### Ejemplo B: Botón de Apagar una Luz
+- **Label (Nombre):** Apagar Luz
+- **Topic:** `prueba/casa/luz/salon/estado`
+- **Payload (Mensaje):** `OFF`
+- **Color:** Gris `#9E9E9E`
 
-## ⚠️ Limitaciones de URL schemes
+### Ejemplo C: Forzar una alerta de sensor
+- **Label (Nombre):** Simular Temperatura Crítica
+- **Topic:** `prueba/invernadero/temp`
+- **Payload (Mensaje):** `45`
+- **Color:** Rojo `#F44336`
 
-### SMS (`sms:`) — NO envía automáticamente
-El scheme `sms:` solo **abre la app de mensajes** con el texto prellenado, pero requiere que el usuario pulse "Enviar". Es una restricción de seguridad de Android — ningún truco (retorno de carro, caracteres especiales, etc.) puede saltársela.
-
-### Alternativas para enviar SMS sin interacción
-
-#### Opción 1: Webhook a API de SMS (recomendada)
-Usa la acción **webhook** en lugar de **intent**:
-
-**Twilio** (tiene capa gratuita):
-```
-Acción:  webhook
-URL:     https://api.twilio.com/2010-04-01/Accounts/{SID}/Messages.json
-Method:  POST
-Body:    To=+34612345678&From=+1234567890&Body=Alerta%20sensor
-```
-*(Requiere autenticación HTTP Basic con SID:AuthToken en la URL)*
-
-**CallMeBot** (gratis, sin registro para WhatsApp):
-```
-Acción:  webhook
-URL:     https://api.callmebot.com/whatsapp.php?phone=+34612345678&text=Alerta+sensor&apikey=TU_KEY
-Method:  GET
-```
-
-**Ntfy.sh → SMS** (gratis):
-Ntfy puede enviar notificaciones push que llegan como si fueran SMS si configuras la app ntfy en el móvil destino.
-
-#### Opción 2: Telegram Bot (gratis, ilimitado)
-Crea un bot con @BotFather y envía mensajes vía webhook:
-```
-Acción:  webhook
-URL:     https://api.telegram.org/bot{TOKEN}/sendMessage
-Method:  POST
-Body:    {"chat_id": "TU_CHAT_ID", "text": "🚨 Alerta: sensor activado"}
-```
-Esto **sí envía el mensaje automáticamente**, sin interacción.
-
-#### Opción 3: Email como alternativa
-Servicios como **Mailgun** o **SendGrid** permiten enviar emails vía webhook:
-```
-Acción:  webhook
-URL:     https://api.mailgun.net/v3/TU_DOMINIO/messages
-Method:  POST
-Body:    from=alerta@tudominio.com&to=tu@email.com&subject=Alerta&text=Sensor+activado
-```
-
-### Resumen: ¿qué se puede hacer automáticamente?
-
-| Método | ¿Automático? | Coste |
-|--------|:------------:|-------|
-| `sms:` (intent) | ❌ Requiere pulsar enviar | Gratis |
-| Twilio webhook | ✅ Envío directo | ~0.01€/SMS |
-| Telegram Bot webhook | ✅ Envío directo | Gratis |
-| CallMeBot WhatsApp | ✅ Envío directo | Gratis |
-| Ntfy.sh push | ✅ Notificación directa | Gratis |
-| `mailto:` (intent) | ❌ Requiere pulsar enviar | Gratis |
-| Mailgun/SendGrid webhook | ✅ Envío directo | Capa gratuita |
-| `tel:` (intent) | ❌ Requiere pulsar llamar | Gratis |
-
-> **Regla general**: Los **intents** (`sms:`, `mailto:`, `tel:`) abren la app pero necesitan confirmación del usuario. Los **webhooks** a APIs externas envían sin interacción.
+> 💡 **Cómo probar que los botones envían bien:** 
+> Vete a la pantalla de **Monitor (Consola)** y añade el filtro de topic `prueba/#`. Al hacer esto, todo lo que empiece por prueba te aparecerá en un log en vivo. Vuelve a tus botones, tócalos y mira cómo en el Monitor aparece al instante todo lo que envías.
 
 ---
 
-## 💡 Tips
+## 3️⃣ Pruebas de Automatizaciones (Acciones)
 
-- **webhook.site** es la forma más rápida de verificar que tus webhooks funcionan
-- Los URL schemes (`tel:`, `sms:`, `mailto:`) funcionan sin instalar nada extra
-- Si una app no se abre con un deep link, prueba con su URL web normal (ej: `https://wa.me/...`)
-- Las acciones de tipo **intent** abren la URL en el navegador o app asociada
-- Si la app está en **background**, recibirás una **notificación tocable** que abrirá la URL
-- Usa **publish** como acción para encadenar reglas (una regla dispara otra)
+Las reglas de **Automatización** funcionan quedándose calladas, "escuchando" silenciosamente. Si ven un mensaje que cumpla su fórmula, ejecutarán una acción en el móvil.
+Usemos los botones de arriba para hacer las pruebas. Revisa la pestaña de **Automatizaciones** y pulsa en el `+` para crearlas:
+
+### Ejemplo A: Hacer sonar una alarma al apagar
+Queremos que tu móvil suene repentinamente si detecta que la luz se apagó.
+- **Nombre:** Alarma de Apagado
+- **Topic:** `prueba/casa/luz/salon/estado`
+- **Condición:** Tipo `Igual a`, Valor `OFF`
+- **Acciones:**
+  - Añade la acción y selecciona **Tipo:** `Sonido`
+  - Selecciona un archivo `.mp3` o `.wav` de las descargas o grabaciones de tu móvil.
+
+**Prueba:** Vete a tu Panel Principal y toca el botón gris de "Apagar Luz". En milisegundos saltará el evento y oirás el sonido.
+
+### Ejemplo B: Abrir una URL o invocar una App Externa (Intent)
+Queremos que el móvil se prepare para iniciar una ruta de conducción hacia tu casa cuando alguien mande 'ON'.
+- **Nombre:** Modo Conducción Inteligente
+- **Topic:** `prueba/casa/luz/salon/estado`
+- **Condición:** Tipo `Igual a`, Valor `ON`
+- **Acciones:**
+  - Añade la acción y selecciona **Tipo:** `Abrir URL/App`
+  - **URL:** `https://maps.google.com/?q=40.4168,-3.7038` *(Ejemplo de España)*
+
+**Prueba:** Al usar el botón "Encender Luz" con su payload "ON", la app llamará al sistema de Android para que cargue la ruta en Google Maps de inmediato. 
+
+*(Recordatorio importante: A veces, si estás fuera de la app o con el modo depuración de Android estricto, en vez de interrumpirte bruscamente el sistema te lanzará una notificación interactiva diciendo que una automatización requiere tocar para ejecutarse y abrir la ventana).*
+
+### Ejemplo C: Disparar un Webhook HTTP al exterior
+Si el invernadero llega a temperaturas altísimas, mandaremos los datos a un servicio web o a una API privada tuya para que analice el error.
+- **Nombre:** Escalada a Web del Sistema
+- **Topic:** `prueba/invernadero/temp`
+- **Condición:** Tipo `Contiene`, Valor `4` *(Saltará porque enviaremos el número 45, que contiene un 4).*
+- **Acciones:**
+  - Selecciona **Tipo:** `Webhook`
+  - **Método HTTP:** `POST` *(La opción que acabamos de agregar).*
+  - **URL:** `https://httpbin.org/post`
+  - **Body JSON:** `{"alerta_enviada": true, "sistema": "invernadero"}`
+
+**Prueba:** Toca tu botón rojo gigante (Ejemplo C). Acto seguido vete a la pantalla Configuración -> **Logs del Sistema**. Encontrarás un registro detallando que se activó la regla y se envió un "Webhook POST" hacia httpbin de manera invisible obteniendo la respuesta de que todo está conforme.
+
+---
+
+## 🔗 Otros Servicios de Webhook Avanzados e Intents Populares
+
+Puedes expandir masivamente lo que puede hacer PocketBroker interactuando con servidores reales de terceros usando el **Ejemplo C (Webhook)**:
+
+| Servicio / Destino | Método | Ejemplo de URL y Body a Completar |
+|--------------------|:------:|-----------------------------------|
+| **Home Assistant** | POST | **URL:** `http://TU_IP:8123/api/webhook/ID_WEBHOOK` <br> **Body JSON:** `{"action": "turn_on"}` |
+| **Ntfy.sh** (Push) | POST | **URL:** `https://ntfy.sh/mi-topic-secreto` <br> **Body JSON:** `Alarma activada en casa` |
+| **Telegram Bot** | POST | **URL:** `https://api.telegram.org/bot[TOKEN_DEL_BOT]/sendMessage` <br> **Body JSON:** `{"chat_id":"ID_TU_USUARIO","text":"🔥 ALARMA INVERNADERO"}` |
+| **Twilio SMS** | POST | *(Usa SMS Directamente sin Interacción del usuario. Necesitarás colocar las credenciales en la propia URL en formato Basic Auth o buscar la API Documentada)*. |
+
+**Atajos para móviles (para la acción de Abrir URL/App):**
+Si quieres que Android interprete acciones nativas, puedes configurarle cosas como:
+- **Hablar en Whatsapp a un número:** `https://wa.me/34612345678?text=Hola,%20detecté%20el%20sensor!`
+- **Llamar por Teléfono:** `tel:+34612345678`
+- **Cargar Spotify:** `spotify:track:4cOdK2wGLETKBW3PvgPWqT`
+- **Cargar YouTube:** `https://youtube.com/watch?v=dQw4w9WgXcQ`
+- **Rellenar un SMS nativo:** `sms:+34612345678?body=Ayuda` *(Te forzará a dar a enviar con el dedo por seguridad de Android, no se manda mágico).*

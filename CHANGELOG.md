@@ -1,6 +1,31 @@
 # Changelog — PocketBroker Automator
 
-## [0.5.0] - 2026-03-25 — Broker MQTT Local Embebido
+## [1.1.0] - 2026-04-03 — Monitoreo Avanzado y Sync de Subscripciones
+
+### ✅ Implementado
+
+#### Panel de Monitoreo Sensorial
+- Monitorización visual en tiempo real de topics MQTT usando widgets configurables.
+- 5 Tipos de visualización:
+  - **Gauge:** Mostrador de valor límite con min/max.
+  - **Gráfica de Líneas:** Tendencias en tiempo real de valores numéricos (última 1h).
+  - **Barras por hora:** Estadísticas y eventos agrupados por hora del día.
+  - **Contador:** Histórico numérico absoluto y ventanas de tiempo (Hoy, 1h).
+  - **Histórico (Log):** Ventana de los últimos payloads de texto recibidos.
+- Selección por Color y Unidad personalizada (ej: °C, lux, W).
+- Vista en profundidad inferior re-ajustable con histórico de 50 registros por variable.
+
+### 🐛 Corregido
+
+#### Sincronización Dinámica de Subscripciones IPC
+- Eliminación correcta de subscripciones MQTT huérfanas o "estancadas" (stale subscriptions) cuando se desactiva una regla o widget.
+- Los topics del Panel de Monitoreo se "protegen" automáticamente para que no se desuscriban accidentalmente en la evaluación general.
+- Comando explícito de sincronización (`syncSubscriptions`) entre el background _isolate_ y la UI.
+- Reconexión mucho más fiable que inyecta todos los payloads MQTT en cache instantáneamente a recuperar red.
+
+---
+
+## [1.0.0] - 2026-03-25 — Lanzamiento V1 (previamente 0.5.0)
 
 ### ✅ Implementado
 

@@ -8,6 +8,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.moquette.broker.Server
 import io.moquette.broker.config.MemoryConfig
 import io.moquette.broker.security.IAuthenticator
+import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.Properties
@@ -63,17 +64,34 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         try {
             stopServer()
 
-            val dataDir = appContext.filesDir.absolutePath + "/moquette"
-            val storeFile = "$dataDir/moquette_store.h2"
-            java.io.File(dataDir).mkdirs()
+            // Usamos almacenamiento privado para el entorno Moquette y H2
+            val dataDir = File(appContext.filesDir, "moquette")
+            if (dataDir.exists()) dataDir.deleteRecursively()
+            dataDir.mkdirs()
+            
+            val storePath = File(dataDir, "moquette_store.h2").absolutePath
+
+            // FIX PARA ANDROID:
+            // Forzamos a H2 y a Moquette a utilizar nuestros directorios seguros de Android
+            // reescribiendo las variables del sistema en las que se basan por defecto.
+            System.setProperty("java.io.tmpdir", appContext.cacheDir.absolutePath)
+            System.setProperty("user.dir", dataDir.absolutePath)
+            System.setProperty("moquette.path", dataDir.absolutePath)
 
             val props = Properties()
             props.setProperty("port", port.toString())
             props.setProperty("host", "0.0.0.0")
             props.setProperty("allow_anonymous", (!authEnabled).toString())
             props.setProperty("allow_zero_byte_client_id", "true")
-            props.setProperty("persistent_store", storeFile)
-            props.setProperty("data_path", dataDir)
+            
+            // Rutas absolutas explícitas
+            props.setProperty("data_path", dataDir.absolutePath)
+            props.setProperty("persistent_store", storePath)
+            
+            // Evitamos que intente leer configuraciones predeterminadas (ej: "conf/password_file.conf")
+            // que al resolverse tratarían de acceder a la raíz "/" del sistema Android.
+            props.setProperty("password_file", "")
+            props.setProperty("acl_file", "")
 
             if (wsEnabled) {
                 props.setProperty("websocket_port", wsPort.toString())
@@ -85,6 +103,7 @@ class MqttBrokerPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
             if (authEnabled && username.isNotEmpty()) {
                 val authenticator = SimpleAuthenticator(username, pwd)
+                // Se pasan nulls a los handlers extra que no necesitamos
                 server!!.startServer(config, null, null, authenticator, null)
             } else {
                 server!!.startServer(config)

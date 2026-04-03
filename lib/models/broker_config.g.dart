@@ -22,8 +22,8 @@ class BrokerConfigAdapter extends TypeAdapter<BrokerConfig> {
       authEnabled: fields[2] as bool,
       username: fields[3] as String,
       password: fields[4] as String,
-      wsEnabled: fields[5] as bool? ?? false,
-      wsPort: fields[6] as int? ?? 8083,
+      wsEnabled: fields[5] as bool,
+      wsPort: fields[6] as int,
     );
   }
 
