@@ -15,6 +15,13 @@ class RuleCondition {
     required this.type,
     this.value = '',
   });
+
+  factory RuleCondition.fromMap(Map<String, dynamic> map) {
+    return RuleCondition(
+      type: map['type'] as String? ?? 'equals',
+      value: map['value'] as String? ?? '',
+    );
+  }
 }
 
 @HiveType(typeId: 3)
@@ -29,6 +36,13 @@ class RuleAction {
     required this.type,
     required this.params,
   });
+
+  factory RuleAction.fromMap(Map<String, dynamic> map) {
+    return RuleAction(
+      type: map['type'] as String? ?? '',
+      params: Map<String, String>.from(map['params'] ?? {}),
+    );
+  }
 }
 
 @HiveType(typeId: 4)
@@ -70,4 +84,19 @@ class AutomationRule extends HiveObject {
             .map((a) => {'type': a.type, 'params': a.params})
             .toList(),
       };
+
+  factory AutomationRule.fromMap(Map<String, dynamic> map) {
+    return AutomationRule(
+      id: map['id'] as String?,
+      name: map['name'] as String? ?? '',
+      topic: map['topic'] as String? ?? '',
+      enabled: map['enabled'] as bool? ?? true,
+      condition: RuleCondition.fromMap(
+          Map<String, dynamic>.from(map['condition'] ?? {})),
+      actions: (map['actions'] as List<dynamic>?)
+              ?.map((a) => RuleAction.fromMap(Map<String, dynamic>.from(a)))
+              .toList() ??
+          [],
+    );
+  }
 }

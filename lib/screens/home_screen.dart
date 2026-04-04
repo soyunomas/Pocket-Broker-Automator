@@ -96,27 +96,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: EdgeInsets.only(right: 4),
                   child: Icon(Icons.sync, color: Colors.greenAccent, size: 16),
                 ),
-              Container(
-                margin: const EdgeInsets.only(right: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
+              GestureDetector(
+                onTap: () => setState(() => _currentIndex = 1),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      connProvider.activeAlias.isNotEmpty
-                          ? connProvider.activeAlias
-                          : 'Sin conexión',
-                      style: TextStyle(fontSize: 11, color: statusColor),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        connProvider.activeAlias.isNotEmpty
+                            ? connProvider.activeAlias
+                            : 'Sin conexión',
+                        style: TextStyle(fontSize: 11, color: statusColor),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

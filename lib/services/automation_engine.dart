@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -11,6 +12,7 @@ class AutomationEngine {
   final LogService _logService;
   final List<AutomationRule> _rules = [];
   final Set<String> _subscribedRuleTopics = {};
+  final Map<String, DateTime> _lastTriggered = {};
   StreamSubscription<ReceivedMqttMessage>? _messageSubscription;
   StreamSubscription<ClientConnectionState>? _connectionSubscription;
 
@@ -92,8 +94,17 @@ class AutomationEngine {
       _logService.log('system',
           'Regla "${rule.name}" [${rule.condition.type}="${rule.condition.value}"] → ${condResult ? "MATCH" : "no match"}');
       if (condResult) {
+        final now = DateTime.now();
+        final lastTime = _lastTriggered[rule.name];
+        if (lastTime != null &&
+            now.difference(lastTime).inMilliseconds < 1000) {
+          _logService.log('system',
+              'Regla "${rule.name}" bloqueada por cooldown (< 1s desde última ejecución)');
+          continue;
+        }
+        _lastTriggered[rule.name] = now;
         matched++;
-        _executeActions(rule);
+        _executeActions(rule, message.payload);
       }
     }
     if (matched == 0) {
@@ -135,36 +146,80 @@ class AutomationEngine {
     }
   }
 
-  Future<void> _executeActions(AutomationRule rule) async {
-    _logService.log('action', 'Regla "${rule.name}" activada');
-    for (final action in rule.actions) {
-      try {
-        await _executeAction(action);
-      } catch (e) {
-        _logService.log('error', 'Error ejecutando acción ${action.type}: $e');
-      }
-    }
+  void _executeActions(AutomationRule rule, String rawPayload) {
+    // Fire-and-forget a nivel de regla: no bloquea _evaluateMessage,
+    // pero las acciones dentro de la misma regla se ejecutan en secuencia
+    // para evitar conflictos (ej. dos sonidos simultáneos).
+    _executeActionsSequentially(rule, rawPayload);
   }
 
-  Future<void> _executeAction(RuleAction action) async {
+  Future<void> _executeActionsSequentially(
+      AutomationRule rule, String rawPayload) async {
+    await _logService.log('action',
+        'Regla "${rule.name}" activada — ${rule.actions.length} acción(es)');
+    for (var i = 0; i < rule.actions.length; i++) {
+      final action = rule.actions[i];
+      final label = '${action.type} [${i + 1}/${rule.actions.length}]';
+      try {
+        await _logService.log('action', '↳ Ejecutando $label...');
+        await _executeAction(action, rawPayload);
+        await _logService.log('action', '✓ $label completada');
+      } catch (e) {
+        await _logService.log('error', '✗ $label falló: $e');
+      }
+    }
+    await _logService.log('action',
+        'Regla "${rule.name}" — todas las acciones procesadas');
+  }
+
+  Future<String> _interpolate(String template, String rawPayload) async {
+    var result = template.replaceAll('{{payload}}', rawPayload);
+
+    Map<String, dynamic>? jsonMap;
+    try {
+      final decoded = jsonDecode(rawPayload);
+      if (decoded is Map<String, dynamic>) {
+        jsonMap = decoded;
+      }
+    } catch (e) {
+      if (template.contains('{{') && template.contains('}}') && template != '{{payload}}') {
+        await _logService.log('warning',
+            'Payload no es JSON válido, no se pueden resolver variables de plantilla: $e');
+      }
+    }
+
+    if (jsonMap != null) {
+      for (final entry in jsonMap.entries) {
+        result = result.replaceAll('{{${entry.key}}}', entry.value.toString());
+      }
+    }
+
+    if (result != template) {
+      await _logService.log('action', 'Interpolando variables en la acción: $result');
+    }
+
+    return result;
+  }
+
+  Future<void> _executeAction(RuleAction action, String rawPayload) async {
     switch (action.type) {
       case 'sound':
-        final file = action.params['file'] ?? '';
+        final file = await _interpolate(action.params['file'] ?? '', rawPayload);
         if (file.isNotEmpty) {
           final player = AudioPlayer();
           player.onPlayerComplete.listen((_) => player.dispose());
           await player.play(DeviceFileSource(file));
         }
-        _logService.log(
+        await _logService.log(
             'action', 'Sonido reproducido: ${file.split('/').last}');
         break;
 
       case 'webhook':
-        final url = action.params['url'] ?? '';
+        final url = await _interpolate(action.params['url'] ?? '', rawPayload);
         final method = action.params['method'] ?? 'GET';
-        final body = action.params['body'] ?? '';
+        final body = await _interpolate(action.params['body'] ?? '', rawPayload);
         if (url.isEmpty) {
-          _logService.log('error', 'Webhook: URL vacía');
+          await _logService.log('error', 'Webhook: URL vacía');
           return;
         }
 
@@ -178,48 +233,48 @@ class AutomationEngine {
                   body: body.isNotEmpty ? body : null,
                 )
                 .timeout(const Duration(seconds: 15));
-            _logService.log(
+            await _logService.log(
                 'action', 'Webhook POST $url → ${response.statusCode}');
           } else {
             final response = await http
                 .get(uri)
                 .timeout(const Duration(seconds: 15));
-            _logService.log(
+            await _logService.log(
                 'action', 'Webhook GET $url → ${response.statusCode}');
           }
         } catch (e) {
-          _logService.log('error', 'Webhook falló: $url → $e');
+          await _logService.log('error', 'Webhook falló: $url → $e');
         }
         break;
 
       case 'intent':
-        final urlStr = action.params['url'] ?? '';
+        final urlStr = await _interpolate(action.params['url'] ?? '', rawPayload);
         if (urlStr.isEmpty) {
-          _logService.log('error', 'Intent: URL vacía, no se puede abrir');
+          await _logService.log('error', 'Intent: URL vacía, no se puede abrir');
           return;
         }
-        _logService.log('action', 'Intent: preparando apertura de URL: $urlStr');
+        await _logService.log('action', 'Intent: preparando apertura de URL: $urlStr');
         if (_onIntentAction != null) {
-          _logService.log('action', 'Intent: delegando a callback (notificación + IPC)');
+          await _logService.log('action', 'Intent: delegando a callback (notificación + IPC)');
           _onIntentAction!(urlStr);
         } else {
           try {
             final uri = Uri.parse(urlStr);
             await launchUrl(uri, mode: LaunchMode.externalApplication);
-            _logService.log('action', 'Intent: URL abierta directamente: $urlStr');
+            await _logService.log('action', 'Intent: URL abierta directamente: $urlStr');
           } catch (e) {
-            _logService.log('error', 'Intent: error abriendo URL: $urlStr → $e');
+            await _logService.log('error', 'Intent: error abriendo URL: $urlStr → $e');
           }
         }
         break;
 
       case 'publish':
-        final topic = action.params['topic'] ?? '';
-        final payload = action.params['payload'] ?? '';
+        final topic = await _interpolate(action.params['topic'] ?? '', rawPayload);
+        final payload = await _interpolate(action.params['payload'] ?? '', rawPayload);
         if (topic.isNotEmpty) {
           _mqttService.publish(topic, payload);
         }
-        _logService.log('action', 'Publicado: $topic → $payload');
+        await _logService.log('action', 'Publicado: $topic → $payload');
         break;
     }
   }

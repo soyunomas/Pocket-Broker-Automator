@@ -49,6 +49,17 @@ class ConnectionProvider extends ChangeNotifier {
       }
     });
 
+    // Receive logs written by the background isolate and replay them
+    // into the UI's LogService so LogProvider picks them up
+    BackgroundServiceController.on('logEntry').listen((event) {
+      if (event != null) {
+        logService.log(
+          event['type'] as String? ?? 'system',
+          event['message'] as String? ?? '',
+        );
+      }
+    });
+
     // Handle URL launch requests from background isolate
     BackgroundServiceController.on('launchUrl').listen((event) async {
       if (event != null) {

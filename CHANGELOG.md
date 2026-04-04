@@ -1,5 +1,50 @@
 # Changelog — PocketBroker Automator
 
+## [1.3.0] - 2026-04-04
+
+### ✅ Cambios
+- Bump de versión a 1.3.0
+
+---
+
+## [1.2.0] - 2026-04-04 — Motor de Automatización v2: Concurrencia, Cooldown e Interpolación
+
+### ✅ Implementado
+
+#### Ejecución concurrente de acciones (Fire-and-forget)
+- Las acciones de cada regla se ejecutan en secuencia dentro de la misma regla (evitando conflictos como dos sonidos simultáneos), pero sin bloquear la evaluación de mensajes MQTT entrantes
+- Nuevo método `_executeActionsSequentially` con aislamiento de errores por acción: el fallo de una acción no detiene las demás
+- Cada acción genera logs detallados: inicio (`↳ Ejecutando...`), resultado (`✓ completada` / `✗ falló`), y resumen final
+
+#### Mecanismo de Cooldown (Anti-spam)
+- Protección contra ráfagas de mensajes MQTT repetidos
+- Mapa `_lastTriggered` controla la última ejecución de cada regla por nombre
+- Cooldown de 1 segundo: si una misma regla se dispara en menos de 1s, se ignora con log de bloqueo
+- Evita colapso del motor ante sensores que publican a alta frecuencia
+
+#### Interpolación de Variables en Acciones (Templates `{{clave}}`)
+- Nuevo método `_interpolate(template, rawPayload)` que reemplaza variables dinámicas en los parámetros de las acciones
+- `{{payload}}` se sustituye por el payload MQTT completo (texto)
+- Si el payload es JSON válido, cada `{{clave}}` se sustituye por el valor correspondiente (ej. `{{temperatura}}` → `24.5`)
+- Funciona en todos los campos: URL de webhooks, body HTTP, URL de intents, topic y payload de publish, ruta de sonidos
+- Log automático cuando se detecta interpolación
+- Warning en logs cuando el payload no es JSON válido y la plantilla usa variables `{{clave}}` (facilita diagnóstico)
+
+#### Logs del motor visibles en la UI
+- **Fix crítico:** Los logs del `AutomationEngine` (que corre en el isolate de fondo) no aparecían en la pantalla de Logs de la UI
+- **Causa:** El `LogProvider` de la UI solo escuchaba el `logStream` de su propia instancia de `LogService`; el isolate de fondo escribía en la misma Hive box pero no notificaba al UI
+- **Solución:** Nuevo canal IPC `logEntry` — el background service reenvía cada log al UI vía `service.invoke('logEntry', ...)`, y el `ConnectionProvider` lo replica en el `LogService` local
+- Se excluyen logs tipo `received` del reenvío para evitar duplicados (ya los genera el listener de `message`)
+- Todos los `_logService.log()` en métodos async ahora usan `await` para garantizar persistencia ordenada
+
+### 🔧 Mejoras UI
+
+#### Indicador de conexión clicable
+- El indicador de estado de conexión (verde/rojo/ámbar) en la esquina superior derecha del AppBar ahora es interactivo
+- Al pulsar, navega directamente a la pantalla de Conexiones
+
+---
+
 ## [1.1.0] - 2026-04-03 — Monitoreo Avanzado y Sync de Subscripciones
 
 ### ✅ Implementado

@@ -22,6 +22,8 @@ El APK release compilado está disponible en la carpeta [`app/`](app/app-release
 - 🔄 **Reconexión robusta** — Backoff exponencial + detección de red + manejo de Doze Mode
 - 📡 **Broker MQTT local** — Broker embebido (Moquette) con start/stop dinámico, puerto configurable y autenticación básica
 - 🤖 **Motor de automatización** — Reglas trigger/acción sobre mensajes MQTT en tiempo real
+- 🔀 **Interpolación de variables** — Templates `{{clave}}` para pasar datos dinámicos del payload MQTT a acciones (URLs, webhooks, publish, etc.)
+- 🛡️ **Anti-spam (Cooldown)** — Protección contra ráfagas de mensajes repetidos con cooldown de 1s por regla
 - 🎛️ **Panel de control** — Botones configurables para publicar en topics MQTT
 - 📊 **Panel de Monitoreo** — Visualización de datos en tiempo real e históricos con widgets ajustables (Gauges, Gráficas, Contadores, Barras, Logs)
 - 📋 **Logs** — Registro persistente de mensajes, acciones y errores con filtros
@@ -33,9 +35,9 @@ El APK release compilado está disponible en la carpeta [`app/`](app/app-release
 | Tipo | Descripción |
 |------|-------------|
 | 🔊 Sonido | Reproducir archivo de audio del dispositivo |
-| 🌐 Webhook | Petición HTTP GET/POST con body JSON |
-| 🔗 Intent/URL | Abrir URL o app externa |
-| 📤 Publish | Publicar mensaje MQTT como reacción |
+| 🌐 Webhook | Petición HTTP GET/POST con body JSON — soporta `{{variables}}` en URL y body |
+| 🔗 Intent/URL | Abrir URL o app externa — soporta `{{variables}}` en la URL |
+| 📤 Publish | Publicar mensaje MQTT como reacción — soporta `{{variables}}` en topic y payload |
 
 ### Condiciones de trigger
 
@@ -166,7 +168,7 @@ lib/
 
 La comunicación entre el **foreground service** (isolate background) y la **UI** se realiza mediante IPC bidireccional de `flutter_background_service`:
 - UI → Service: `connect`, `disconnect`, `publish`, `subscribe`, `unsubscribe`, `updateRules`, `syncSubscriptions`, `requestState`
-- Service → UI: `connectionState`, `message`, `launchUrl`
+- Service → UI: `connectionState`, `message`, `launchUrl`, `logEntry`
 
 ---
 
