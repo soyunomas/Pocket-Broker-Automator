@@ -119,3 +119,107 @@ Si quieres que Android interprete acciones nativas, puedes configurarle cosas co
 - **Cargar Spotify:** `spotify:track:4cOdK2wGLETKBW3PvgPWqT`
 - **Cargar YouTube:** `https://youtube.com/watch?v=dQw4w9WgXcQ`
 - **Rellenar un SMS nativo:** `sms:+34612345678?body=Ayuda` *(Te forzará a dar a enviar con el dedo por seguridad de Android, no se manda mágico).*
+
+---
+
+## 🔀 Interpolación de Variables — Datos dinámicos del payload MQTT
+
+PocketBroker permite insertar datos del mensaje MQTT entrante directamente en los campos de tus acciones usando **doble llave `{{ }}`**. Todo se configura desde la interfaz gráfica, sin programar nada.
+
+> 💡 **Consejo:** Puedes usar `{{payload}}` para insertar el mensaje recibido completo, o `{{clave}}` si el mensaje es un JSON (ej. `{{temperatura}}`).
+
+### Escenario 1: Reenviar datos de un sensor a un Webhook POST
+
+**Payload entrante (JSON)** en topic `casa/salon/clima`:
+```json
+{"temperatura": 24.5, "humedad": 60, "estado": "ok"}
+```
+
+**Configuración de la regla:**
+- **Nombre:** Guardar clima en servidor
+- **Topic:** `casa/salon/clima`
+- **Condición:** Tipo `Cualquiera`
+- **Acción:** Webhook POST
+  - **URL:** `https://tudominio.com/api/guardar_clima`
+  - **Body:**
+    ```
+    {"grados": "{{temperatura}}", "porcentaje_humedad": "{{humedad}}", "dispositivo": "Sensor Salón", "mensaje_original": "{{payload}}"}
+    ```
+
+**Resultado:** El motor reemplazará las variables y enviará al servidor:
+```
+{"grados": "24.5", "porcentaje_humedad": "60", "dispositivo": "Sensor Salón", "mensaje_original": "{"temperatura": 24.5, "humedad": 60, "estado": "ok"}"}
+```
+
+---
+
+### Escenario 2: Pasar datos por la URL en un Webhook GET
+
+**Payload entrante (texto plano):** `Alarma activada`
+
+**Configuración de la regla:**
+- **Nombre:** Notificar Telegram
+- **Topic:** `casa/alarma`
+- **Condición:** Tipo `Cualquiera`
+- **Acción:** Webhook GET
+  - **URL:** `https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<ID>&text=Atencion: {{payload}}`
+
+**Resultado:** Hará la llamada GET a:
+```
+.../sendMessage?chat_id=<ID>&text=Atencion: Alarma activada
+```
+
+---
+
+### Escenario 3: Abrir una App externa (Intent) con datos del sensor
+
+**Payload entrante (JSON)** en topic `parking/entrada`:
+```json
+{"matricula": "1234ABC", "plaza": "B4"}
+```
+
+**Configuración de la regla:**
+- **Nombre:** Verificar coche
+- **Topic:** `parking/entrada`
+- **Condición:** Tipo `Cualquiera`
+- **Acción:** Abrir URL/App
+  - **URL:** `https://mi-sistema-parking.com/verificar?coche={{matricula}}&lugar={{plaza}}`
+
+**Resultado:** Abrirá el navegador directamente en:
+```
+https://mi-sistema-parking.com/verificar?coche=1234ABC&lugar=B4
+```
+
+---
+
+### Escenario 4: Re-enrutar mensajes MQTT (Publish dinámico)
+
+**Payload entrante (JSON)** en topic `fabrica/maquinas/alertas`:
+```json
+{"error_code": 404, "device": "bomba_agua"}
+```
+
+**Configuración de la regla:**
+- **Nombre:** Redirigir alerta a mantenimiento
+- **Topic:** `fabrica/maquinas/alertas`
+- **Condición:** Tipo `Cualquiera`
+- **Acción:** Publicar mensaje MQTT
+  - **Topic destino:** `alertas/mantenimiento/{{device}}`
+  - **Payload:** `El dispositivo ha reportado el error: {{error_code}}`
+
+**Resultado:** Publicará el mensaje `El dispositivo ha reportado el error: 404` en el topic `alertas/mantenimiento/bomba_agua`.
+
+---
+
+### Escenario 5: Enviar WhatsApp con el payload completo
+
+**Payload entrante (texto plano):** `Sensor de humo activado en planta 2`
+
+**Configuración de la regla:**
+- **Nombre:** Alerta WhatsApp
+- **Topic:** `edificio/emergencias`
+- **Condición:** Tipo `Contiene`, Valor `humo`
+- **Acción:** Abrir URL/App
+  - **URL:** `https://wa.me/34612345678?text={{payload}}`
+
+**Resultado:** Abrirá WhatsApp con el mensaje pre-rellenado: `Sensor de humo activado en planta 2`

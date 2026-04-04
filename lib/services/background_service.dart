@@ -181,6 +181,16 @@ Future<void> _onStart(ServiceInstance service) async {
         importance: Importance.high,
       ));
 
+  // Forward logs from background isolate to UI so LogProvider can refresh.
+  // Skip 'received' type: the UI already creates those from the 'message' IPC event.
+  logService.logStream.listen((entry) {
+    if (entry.type == 'received') return;
+    service.invoke('logEntry', {
+      'type': entry.type,
+      'message': entry.message,
+    });
+  });
+
   final engine = AutomationEngine(mqtt, logService);
 
   // Load saved monitor widgets and subscribe to their topics
@@ -309,11 +319,12 @@ Future<void> _onStart(ServiceInstance service) async {
 
   service.on('updateRules').listen((event) async {
     if (event == null) return;
-    // Re-read from Hive — close and reopen to get fresh data from UI isolate
-    final box = await Hive.openBox<AutomationRule>('automation_rules');
-    await box.close();
-    final freshBox = await Hive.openBox<AutomationRule>('automation_rules');
-    final rules = freshBox.values.toList();
+    
+    // Parse rules directly from IPC to avoid Hive memory cache stale data across isolates
+    final rulesJson = event['rules'] as List<dynamic>? ?? [];
+    final rules = rulesJson
+        .map((r) => AutomationRule.fromMap(Map<String, dynamic>.from(r)))
+        .toList();
 
     // Collect monitor widget topics as protected (don't unsubscribe them)
     Set<String> currentMonitorTopics = {};
@@ -344,23 +355,8 @@ Future<void> _onStart(ServiceInstance service) async {
       logService.log('error', 'syncSubscriptions: error leyendo monitores: $e');
     }
 
-    // Re-read rules
-    try {
-      final rBox = await Hive.openBox<AutomationRule>('automation_rules');
-      await rBox.close();
-      final freshRBox = await Hive.openBox<AutomationRule>('automation_rules');
-      final rules = freshRBox.values.toList();
-      Set<String> currentMonitorTopics = {};
-      try {
-        final mBox = Hive.box<MonitorWidget>('monitor_widgets');
-        currentMonitorTopics = mBox.values.map((w) => w.topic).toSet();
-      } catch (_) {}
-      engine.loadRules(rules, protectedTopics: currentMonitorTopics);
-      logService.log('system',
-          'syncSubscriptions: ${rules.where((r) => r.enabled).length} reglas activas');
-    } catch (e) {
-      logService.log('error', 'syncSubscriptions: error leyendo reglas: $e');
-    }
+    // We no longer re-read rules from Hive here to prevent the memory cache bug.
+    // The rules are accurately updated strictly via the 'updateRules' IPC event.
   });
 
   service.on('requestState').listen((_) {
