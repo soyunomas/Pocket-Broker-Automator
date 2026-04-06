@@ -28,6 +28,8 @@ El APK release compilado está disponible en la carpeta [`app/`](app/app-release
 - 📊 **Panel de Monitoreo** — Visualización de datos en tiempo real e históricos con widgets ajustables (Gauges, Gráficas, Contadores, Barras, Logs)
 - 📋 **Logs** — Registro persistente de mensajes, acciones y errores con filtros
 - 🔔 **Background Service** — Foreground service Android para operación 24/7
+- 🔋 **Battery Optimizer** — Solicitud automática de exclusión de optimización de batería al conectar (Xiaomi/Samsung/Huawei)
+- 📦 **Export/Import** — Exportación e importación selectiva de configuración (conexiones, reglas, controles, monitores) en JSON
 - 🌙 **Modo oscuro** — Material 3 dark theme
 
 ### Acciones de automatización
@@ -144,7 +146,10 @@ lib/
 │   ├── logs_screen.dart
 │   └── broker_screen.dart
 └── utils/                    # Utilidades
-    └── chart_painters.dart   # Dibujo de gráficas en canvas
+    ├── battery_optimizer.dart  # Exclusión de optimización de batería
+    ├── chart_painters.dart     # Dibujo de gráficas en canvas
+    ├── config_exporter.dart    # Export/Import de configuración JSON
+    └── debug_tracer.dart       # Ring buffer de traza de debug
 ```
 
 ---
@@ -167,8 +172,8 @@ lib/
 ```
 
 La comunicación entre el **foreground service** (isolate background) y la **UI** se realiza mediante IPC bidireccional de `flutter_background_service`:
-- UI → Service: `connect`, `disconnect`, `publish`, `subscribe`, `unsubscribe`, `updateRules`, `syncSubscriptions`, `requestState`
-- Service → UI: `connectionState`, `message`, `launchUrl`, `logEntry`
+- UI → Service: `connect`, `disconnect`, `publish`, `subscribe`, `unsubscribe`, `updateRules`, `syncSubscriptions`, `requestState`, `requestDebugTrace`, `clearDebugTrace`
+- Service → UI: `connectionState`, `message`, `launchUrl`, `logEntry`, `debugTrace`
 
 ---
 
@@ -210,7 +215,7 @@ La comunicación entre el **foreground service** (isolate background) y la **UI*
 - [x] Broker MQTT local embebido (Moquette vía MethodChannel)
 - [ ] Cifrado de credenciales con `flutter_secure_storage`
 - [ ] Icon picker para botones del dashboard
-- [ ] Export/Import de configuración (JSON)
+- [x] Export/Import de configuración (JSON)
 - [ ] Monitor de topics en tiempo real (sniffer)
 - [ ] Scripting (JS/Lua) para acciones avanzadas
 - [ ] Widgets Android (home screen)

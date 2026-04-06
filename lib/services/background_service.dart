@@ -10,6 +10,7 @@ import '../models/log_entry.dart';
 import '../models/broker_config.dart';
 import '../models/monitor_widget.dart';
 import '../models/sensor_reading.dart';
+import '../utils/debug_tracer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'mqtt_client_service.dart';
 import 'log_service.dart';
@@ -126,6 +127,14 @@ class BackgroundServiceController {
     _service.invoke('requestState');
   }
 
+  static void requestDebugTrace() {
+    _service.invoke('requestDebugTrace');
+  }
+
+  static void clearDebugTrace() {
+    _service.invoke('clearDebugTrace');
+  }
+
   // --- IPC: Service → UI (streams) ---
 
   static Stream<Map<String, dynamic>?> on(String event) {
@@ -141,14 +150,19 @@ class BackgroundServiceController {
 Future<void> _onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
 
+  final trace = DebugTracer.instance;
+  trace.log('BG_SVC', '═══ BACKGROUND SERVICE STARTING ═══');
+
   // Init Hive in this isolate
   await Hive.initFlutter();
   _registerAdapters();
+  trace.log('BG_SVC', 'Hive inicializado y adaptadores registrados');
 
   // Create services (logService first so notification callbacks can use it)
   final mqtt = MqttClientService();
   final logService = LogService();
   await logService.init();
+  trace.log('BG_SVC', 'MQTT y LogService creados');
 
   // Create URL notification channel for clickable URL notifications
   final notifPlugin = FlutterLocalNotificationsPlugin();
@@ -192,19 +206,29 @@ Future<void> _onStart(ServiceInstance service) async {
   });
 
   final engine = AutomationEngine(mqtt, logService);
+  trace.log('BG_SVC', 'AutomationEngine creado');
+
+  // Mutable set of monitor topics — used by the message forwarder to filter
+  final activeMonitorTopics = <String>{};
 
   // Load saved monitor widgets and subscribe to their topics
   final monitorBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
-  final monitorTopics = monitorBox.values.map((w) => w.topic).toSet();
-  for (final topic in monitorTopics) {
+  activeMonitorTopics.addAll(monitorBox.values.map((w) => w.topic));
+  trace.log('BG_SVC', 'Monitor topics cargados: $activeMonitorTopics');
+  for (final topic in activeMonitorTopics) {
     mqtt.subscribe(topic);
   }
   logService.log('system',
-      'Suscrito a ${monitorTopics.length} topics de monitores al iniciar');
+      'Suscrito a ${activeMonitorTopics.length} topics de monitores al iniciar');
 
   // Load saved rules and start engine (protect monitor topics)
   final rulesBox = await Hive.openBox<AutomationRule>('automation_rules');
-  engine.loadRules(rulesBox.values.toList(), protectedTopics: monitorTopics);
+  final savedRules = rulesBox.values.toList();
+  trace.log('BG_SVC', 'Reglas cargadas de Hive: ${savedRules.length}');
+  for (final r in savedRules) {
+    trace.log('BG_SVC', '  regla Hive: "${r.name}" topic="${r.topic}" enabled=${r.enabled}');
+  }
+  engine.loadRules(savedRules, protectedTopics: activeMonitorTopics);
 
   // Delegate intent/URL actions: try UI first, also show notification as fallback
   engine.onIntentAction = (url) {
@@ -215,21 +239,18 @@ Future<void> _onStart(ServiceInstance service) async {
   };
 
   engine.start();
+  trace.log('BG_SVC', 'Engine iniciado');
 
   // Forward connection state to UI and re-subscribe all topics on reconnect
   mqtt.connectionStateStream.listen((state) {
+    trace.log('BG_SVC', 'connectionState cambió: ${state.name}');
     service.invoke('connectionState', {'state': state.name});
 
     // When connection is (re)established, ensure monitor widget topics are subscribed
     // (rule topics are handled by the AutomationEngine's own listener)
     if (state == ClientConnectionState.connected) {
-      try {
-        final mBox = Hive.box<MonitorWidget>('monitor_widgets');
-        for (final w in mBox.values) {
-          mqtt.subscribe(w.topic);
-        }
-      } catch (_) {
-        // Box might not be open yet during initial startup
+      for (final topic in activeMonitorTopics) {
+        mqtt.subscribe(topic);
       }
     }
 
@@ -259,19 +280,35 @@ Future<void> _onStart(ServiceInstance service) async {
     }
   });
 
-  // Forward received messages to UI
+  // Forward received messages to UI — ONLY if a monitor widget cares about this topic.
+  // This avoids flooding the IPC channel and Hive with irrelevant messages
+  // from public brokers.  Rule evaluation is handled by AutomationEngine
+  // which has its own listener on the same messageStream.
   mqtt.messageStream.listen((msg) {
-    logService.log('received', '${msg.topic} → ${msg.payload}');
-    service.invoke('message', {
-      'topic': msg.topic,
-      'payload': msg.payload,
-    });
+    // Check exact match first (O(1)), then wildcard monitor topics
+    bool forward = activeMonitorTopics.contains(msg.topic);
+    if (!forward) {
+      for (final mt in activeMonitorTopics) {
+        if ((mt.contains('+') || mt.contains('#')) &&
+            _topicMatchesBg(mt, msg.topic)) {
+          forward = true;
+          break;
+        }
+      }
+    }
+    if (forward) {
+      service.invoke('message', {
+        'topic': msg.topic,
+        'payload': msg.payload,
+      });
+    }
   });
 
   // --- Handle commands from UI ---
 
   service.on('connect').listen((event) async {
     if (event == null) return;
+    trace.log('IPC', 'connect recibido: alias="${event['alias']}" host="${event['host']}:${event['port']}" ssl=${event['ssl']}');
     final profile = ConnectionProfile(
       id: event['id'] as String?,
       alias: event['alias'] as String? ?? '',
@@ -283,6 +320,7 @@ Future<void> _onStart(ServiceInstance service) async {
       ssl: event['ssl'] as bool? ?? false,
     );
     final ok = await mqtt.connect(profile);
+    trace.log('IPC', 'connect resultado: ${ok ? "OK" : "FAIL"} para ${profile.alias}');
     logService.log(
         ok ? 'system' : 'error',
         ok
@@ -292,7 +330,9 @@ Future<void> _onStart(ServiceInstance service) async {
 
   service.on('disconnect').listen((_) async {
     final alias = mqtt.activeProfile?.alias ?? '';
+    trace.log('IPC', 'disconnect recibido (alias actual: "$alias")');
     await mqtt.disconnect();
+    trace.log('IPC', 'disconnect completado');
     logService.log('system', 'Desconectado de $alias');
   });
 
@@ -322,41 +362,48 @@ Future<void> _onStart(ServiceInstance service) async {
     
     // Parse rules directly from IPC to avoid Hive memory cache stale data across isolates
     final rulesJson = event['rules'] as List<dynamic>? ?? [];
+    trace.log('IPC', 'updateRules recibido: ${rulesJson.length} reglas en JSON');
     final rules = rulesJson
         .map((r) => AutomationRule.fromMap(Map<String, dynamic>.from(r)))
         .toList();
+    for (final r in rules) {
+      trace.log('IPC', '  regla IPC: "${r.name}" topic="${r.topic}" enabled=${r.enabled} cond=${r.condition.type}/${r.condition.value} actions=${r.actions.length}');
+    }
 
-    // Collect monitor widget topics as protected (don't unsubscribe them)
-    Set<String> currentMonitorTopics = {};
+    // Refresh monitor topics set and use as protected
     try {
       final mBox = Hive.box<MonitorWidget>('monitor_widgets');
-      currentMonitorTopics = mBox.values.map((w) => w.topic).toSet();
+      activeMonitorTopics
+        ..clear()
+        ..addAll(mBox.values.map((w) => w.topic));
     } catch (_) {}
+    trace.log('IPC', 'Monitor topics protegidos: $activeMonitorTopics');
 
-    engine.loadRules(rules, protectedTopics: currentMonitorTopics);
+    engine.loadRules(rules, protectedTopics: activeMonitorTopics);
+    trace.log('IPC', 'updateRules completado — engine.loadRules() llamado');
     logService.log('system',
         'Reglas actualizadas: ${rules.where((r) => r.enabled).length} activas');
   });
 
   // Sync all subscriptions (monitor widgets + rules) — triggered by UI
   service.on('syncSubscriptions').listen((_) async {
-    // Re-read monitor widgets
+    // Re-read monitor widgets and refresh the activeMonitorTopics set
     try {
       final mBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
       await mBox.close();
       final freshMBox = await Hive.openBox<MonitorWidget>('monitor_widgets');
-      final mTopics = freshMBox.values.map((w) => w.topic).toSet();
-      for (final topic in mTopics) {
+      activeMonitorTopics
+        ..clear()
+        ..addAll(freshMBox.values.map((w) => w.topic));
+      for (final topic in activeMonitorTopics) {
         mqtt.subscribe(topic);
       }
+      trace.log('IPC', 'syncSubscriptions: activeMonitorTopics=$activeMonitorTopics');
       logService.log('system',
-          'syncSubscriptions: ${mTopics.length} topics de monitores sincronizados');
+          'syncSubscriptions: ${activeMonitorTopics.length} topics de monitores sincronizados');
     } catch (e) {
       logService.log('error', 'syncSubscriptions: error leyendo monitores: $e');
     }
-
-    // We no longer re-read rules from Hive here to prevent the memory cache bug.
-    // The rules are accurately updated strictly via the 'updateRules' IPC event.
   });
 
   service.on('requestState').listen((_) {
@@ -365,6 +412,38 @@ Future<void> _onStart(ServiceInstance service) async {
       'alias': mqtt.activeProfile?.alias ?? '',
       'host': mqtt.activeProfile?.host ?? '',
     });
+  });
+
+  service.on('clearDebugTrace').listen((_) {
+    trace.log('IPC', 'clearDebugTrace recibido');
+    trace.clear();
+  });
+
+  service.on('requestDebugTrace').listen((_) {
+    trace.log('IPC', 'requestDebugTrace recibido — enviando ${trace.length} líneas');
+    // Send trace in chunks to avoid IPC size limits
+    final allLines = trace.lines();
+    const chunkSize = 50;
+    final totalChunks = (allLines.length / chunkSize).ceil();
+    for (var i = 0; i < allLines.length; i += chunkSize) {
+      final end = (i + chunkSize) > allLines.length ? allLines.length : i + chunkSize;
+      final chunk = allLines.sublist(i, end).join('\n');
+      final chunkIndex = (i / chunkSize).floor();
+      service.invoke('debugTrace', {
+        'chunk': chunk,
+        'index': chunkIndex,
+        'total': totalChunks,
+        'totalLines': allLines.length,
+      });
+    }
+    if (allLines.isEmpty) {
+      service.invoke('debugTrace', {
+        'chunk': '',
+        'index': 0,
+        'total': 1,
+        'totalLines': 0,
+      });
+    }
   });
 
   service.on('stop').listen((_) async {
@@ -426,6 +505,20 @@ Future<void> _showUrlNotification(
   } catch (e) {
     logService.log('error', 'Error mostrando notificación URL: $url → $e');
   }
+}
+
+/// MQTT topic matching for the background isolate message forwarder.
+bool _topicMatchesBg(String pattern, String topic) {
+  if (pattern == topic) return true;
+  final pp = pattern.split('/');
+  final tp = topic.split('/');
+  for (var i = 0; i < pp.length; i++) {
+    if (pp[i] == '#') return true;
+    if (i >= tp.length) return false;
+    if (pp[i] == '+') continue;
+    if (pp[i] != tp[i]) return false;
+  }
+  return pp.length == tp.length;
 }
 
 void _registerAdapters() {

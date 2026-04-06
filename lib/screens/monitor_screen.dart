@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/monitor_widget.dart';
 import '../providers/monitor_provider.dart';
@@ -443,28 +444,41 @@ class MonitorScreen extends StatelessWidget {
                     '${t.day.toString().padLeft(2, '0')}/${t.month.toString().padLeft(2, '0')}';
                 final timeStr =
                     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        child: Text(dateStr,
-                            style: const TextStyle(
-                                color: Colors.white24, fontSize: 10)),
+                final displayValue = '${r.value}${mw.unit.isNotEmpty ? ' ${mw.unit}' : ''}';
+                return GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: r.value));
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('Copiado: ${r.value}'),
+                        duration: const Duration(seconds: 1),
                       ),
-                      SizedBox(
-                        width: 60,
-                        child: Text(timeStr,
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 11)),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text('${r.value}${mw.unit.isNotEmpty ? ' ${mw.unit}' : ''}',
-                            style: TextStyle(color: color, fontSize: 12)),
-                      ),
-                    ],
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          child: Text(dateStr,
+                              style: const TextStyle(
+                                  color: Colors.white24, fontSize: 10)),
+                        ),
+                        SizedBox(
+                          width: 60,
+                          child: Text(timeStr,
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 11)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(displayValue,
+                              style: TextStyle(color: color, fontSize: 12)),
+                        ),
+                        const Icon(Icons.copy, size: 12, color: Colors.white12),
+                      ],
+                    ),
                   ),
                 );
               }),
@@ -651,12 +665,15 @@ class MonitorScreen extends StatelessWidget {
                 child: const Text('Cancelar')),
             FilledButton(
               onPressed: () {
-                if (labelCtrl.text.isEmpty || topicCtrl.text.isEmpty) return;
+                final label = labelCtrl.text.trim();
+                final topic = topicCtrl.text.trim();
+                final unit = unitCtrl.text.trim();
+                if (label.isEmpty || topic.isEmpty) return;
                 if (isEditing) {
-                  widget.label = labelCtrl.text;
-                  widget.topic = topicCtrl.text;
+                  widget.label = label;
+                  widget.topic = topic;
                   widget.type = type;
-                  widget.unit = unitCtrl.text;
+                  widget.unit = unit;
                   widget.icon = icon;
                   widget.minValue = double.tryParse(minCtrl.text);
                   widget.maxValue = double.tryParse(maxCtrl.text);
@@ -664,10 +681,10 @@ class MonitorScreen extends StatelessWidget {
                   provider.updateWidget(widget);
                 } else {
                   provider.addWidget(MonitorWidget(
-                    label: labelCtrl.text,
-                    topic: topicCtrl.text,
+                    label: label,
+                    topic: topic,
                     type: type,
-                    unit: unitCtrl.text,
+                    unit: unit,
                     icon: icon,
                     minValue: double.tryParse(minCtrl.text),
                     maxValue: double.tryParse(maxCtrl.text),

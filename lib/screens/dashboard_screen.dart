@@ -206,20 +206,23 @@ class DashboardScreen extends StatelessWidget {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             FilledButton(
               onPressed: () {
-                if (labelCtrl.text.isEmpty || topicCtrl.text.isEmpty) return;
+                final label = labelCtrl.text.trim();
+                final topic = topicCtrl.text.trim();
+                final payload = payloadCtrl.text.trim();
+                if (label.isEmpty || topic.isEmpty) return;
                 if (isEditing) {
-                  button.label = labelCtrl.text;
-                  button.topic = topicCtrl.text;
-                  button.payload = payloadCtrl.text;
+                  button.label = label;
+                  button.topic = topic;
+                  button.payload = payload;
                   button.color = colorCtrl.text;
                   button.qos = qos;
                   button.retain = retain;
                   provider.updateButton(button);
                 } else {
                   provider.addButton(DashboardButton(
-                    label: labelCtrl.text,
-                    topic: topicCtrl.text,
-                    payload: payloadCtrl.text,
+                    label: label,
+                    topic: topic,
+                    payload: payload,
                     color: colorCtrl.text,
                     qos: qos,
                     retain: retain,

@@ -1,7 +1,7 @@
 name: pocket_broker_automator
 description: "PocketBroker Automator - MQTT Broker/Client + Automation Engine para IoT"
 publish_to: 'none'
-version: 1.3.0+4
+version: 1.2.0+5
 
 environment:
   sdk: '>=3.4.3 <4.0.0'

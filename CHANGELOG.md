@@ -1,49 +1,64 @@
 # Changelog — PocketBroker Automator
 
-## [1.3.0] - 2026-04-04
+## [1.2.0] - 2026-04-06 — Motor v2, Export/Import, Interpolación y Estabilidad
 
-### ✅ Cambios
-- Bump de versión a 1.3.0
+Esta versión unifica una gran reescritura del motor de automatización (v2) junto con herramientas cruciales de respaldo y mejoras profundas en la estabilidad del servicio en segundo plano.
 
----
+### 🚀 Novedades Principales
 
-## [1.2.0] - 2026-04-04 — Motor de Automatización v2: Concurrencia, Cooldown e Interpolación
+#### Motor de Automatización v2: Interpolación de Variables (Templates `{{clave}}`)
+- Nuevo método `_interpolate(template, rawPayload)` que reemplaza variables dinámicas en los parámetros de las acciones sin necesidad de programar.
+- `{{payload}}` se sustituye por el payload MQTT completo (texto).
+- Si el payload es JSON válido, cada `{{clave}}` se sustituye por el valor correspondiente (ej. `{{temperatura}}` → `24.5`).
+- **Soportado en:** URL de webhooks, body HTTP, URL de intents, topic de publish, payload de publish y ruta de sonidos.
+- Log automático cuando se detecta interpolación y *Warning* en logs si el payload no es JSON válido pero la plantilla usa `{{clave}}`.
 
-### ✅ Implementado
+#### Export/Import de configuración (JSON)
+- Nuevo menú ⋮ en el AppBar con opciones de **Exportar** e **Importar** configuración.
+- Diálogo de selección con checkboxes para elegir qué secciones exportar: Conexiones, Reglas, Controles y Monitores.
+- El archivo JSON incluye todos los datos serializados de cada sección seleccionada.
+- Al importar, el sistema detecta automáticamente qué contiene el archivo y muestra un resumen antes de confirmar.
 
-#### Ejecución concurrente de acciones (Fire-and-forget)
-- Las acciones de cada regla se ejecutan en secuencia dentro de la misma regla (evitando conflictos como dos sonidos simultáneos), pero sin bloquear la evaluación de mensajes MQTT entrantes
-- Nuevo método `_executeActionsSequentially` con aislamiento de errores por acción: el fallo de una acción no detiene las demás
-- Cada acción genera logs detallados: inicio (`↳ Ejecutando...`), resultado (`✓ completada` / `✗ falló`), y resumen final
+#### Ejecución concurrente y aislada (Fire-and-forget)
+- Las acciones de cada regla se ejecutan en secuencia dentro de la misma regla (evitando conflictos como dos sonidos pisándose), pero **sin bloquear** la evaluación de nuevos mensajes MQTT entrantes.
+- Nuevo método `_executeActionsSequentially` con aislamiento de errores: el fallo de una acción (ej. timeout de webhook) ya no detiene las demás acciones de la regla.
+- Cada acción genera logs detallados del proceso: inicio (`↳ Ejecutando...`), resultado (`✓ completada` / `✗ falló`), y resumen final.
 
 #### Mecanismo de Cooldown (Anti-spam)
-- Protección contra ráfagas de mensajes MQTT repetidos
-- Mapa `_lastTriggered` controla la última ejecución de cada regla por nombre
-- Cooldown de 1 segundo: si una misma regla se dispara en menos de 1s, se ignora con log de bloqueo
-- Evita colapso del motor ante sensores que publican a alta frecuencia
+- Protección contra ráfagas de mensajes MQTT repetidos que colapsaban el motor.
+- Mapa `_lastTriggered` controla la última ejecución de cada regla.
+- **Cooldown de 1 segundo:** si una misma regla se dispara en menos de 1s, se ignora la ejecución y se deja constancia visual en los logs (`Regla "X" bloqueada por cooldown`).
 
-#### Interpolación de Variables en Acciones (Templates `{{clave}}`)
-- Nuevo método `_interpolate(template, rawPayload)` que reemplaza variables dinámicas en los parámetros de las acciones
-- `{{payload}}` se sustituye por el payload MQTT completo (texto)
-- Si el payload es JSON válido, cada `{{clave}}` se sustituye por el valor correspondiente (ej. `{{temperatura}}` → `24.5`)
-- Funciona en todos los campos: URL de webhooks, body HTTP, URL de intents, topic y payload de publish, ruta de sonidos
-- Log automático cuando se detecta interpolación
-- Warning en logs cuando el payload no es JSON válido y la plantilla usa variables `{{clave}}` (facilita diagnóstico)
+#### Logs del motor sincronizados en la UI
+- **Rediseño arquitectónico:** El `AutomationEngine` (isolate de fondo) ahora se comunica con la UI en tiempo real.
+- Creado un nuevo canal IPC `logEntry` — el background service reenvía cada log al UI vía `service.invoke('logEntry', ...)`, y el `ConnectionProvider` lo replica en el `LogService` local.
+- Se excluyen logs tipo `received` del reenvío para evitar duplicados en la UI.
+- Todos los `_logService.log()` en métodos async ahora usan `await` para garantizar la persistencia ordenada en base de datos.
 
-#### Logs del motor visibles en la UI
-- **Fix crítico:** Los logs del `AutomationEngine` (que corre en el isolate de fondo) no aparecían en la pantalla de Logs de la UI
-- **Causa:** El `LogProvider` de la UI solo escuchaba el `logStream` de su propia instancia de `LogService`; el isolate de fondo escribía en la misma Hive box pero no notificaba al UI
-- **Solución:** Nuevo canal IPC `logEntry` — el background service reenvía cada log al UI vía `service.invoke('logEntry', ...)`, y el `ConnectionProvider` lo replica en el `LogService` local
-- Se excluyen logs tipo `received` del reenvío para evitar duplicados (ya los genera el listener de `message`)
-- Todos los `_logService.log()` en métodos async ahora usan `await` para garantizar persistencia ordenada
+#### BatteryOptimizer activado
+- La clase `BatteryOptimizer` ahora solicita la exclusión de optimización de batería automáticamente al conectar al broker por primera vez.
+- **Crítico** para dispositivos Xiaomi/Samsung/Huawei que destruyen los *foreground services* si no cuentan con esta exclusión.
 
-### 🔧 Mejoras UI
+### 🔧 Mejoras de UI y UX
 
-#### Indicador de conexión clicable
-- El indicador de estado de conexión (verde/rojo/ámbar) en la esquina superior derecha del AppBar ahora es interactivo
-- Al pulsar, navega directamente a la pantalla de Conexiones
+#### Límite de lecturas del monitor ampliado
+- Capacidad de Caché en memoria aumentada drásticamente: de 200 a **10.000** lecturas por topic.
+- Almacenamiento persistente (Hive) aumentado: de 5.000 a **50.000** lecturas totales (suficiente para ~7 días con mensajes cada 12 segundos).
 
----
+#### Optimizaciones de interacción
+- **Indicador interactivo:** El estado de conexión (🟢 / 🟡 / 🔴) en el AppBar ahora es pulsable y navega directamente a la pantalla de Conexiones.
+- **Valores copiables:** Cada fila del historial en los paneles de monitoreo es pulsable para copiar el valor al portapapeles (se ha añadido un icono de copia sutil como indicador visual).
+- **Botón de limpieza en Debug Trace:** Añadido icono de papelera (🗑️) en la pantalla de traza de debug que envía el comando `clearDebugTrace` al isolate para limpiar el *ring buffer*. Incluye protección si el servicio no está activo.
+
+#### Sanitización visual y de datos
+- **Trim automático:** Todos los campos de topic, payload y valor se recortan automáticamente (`.trim()`) al guardar (en dashboard, monitores, reglas y acciones). Evita errores por espacios invisibles añadidos por el teclado del móvil.
+- **Alias del broker:** El texto en el AppBar ahora tiene un ancho máximo de 120px con *overflow ellipsis* para evitar que nombres largos rompan la interfaz.
+
+### 🐛 Corregido
+
+- **Fix Crítico (Logs ausentes):** Resuelto el problema donde los logs de ejecución de reglas y acciones no aparecían en la pantalla de la app por estar atrapados en el *isolate* secundario (solucionado vía IPC `logEntry`).
+- **Export 0 bytes / crash en Android:** `FilePicker.saveFile()` en Android devuelve un *content URI*, no un *path* escribible. Ahora se pasan los `bytes` directamente al plugin, evitando que la app crashee al exportar.
+- **Triple pantalla de debug:** Se bloqueó la creación de múltiples pantallas fantasma con *timeout* si el usuario pulsaba repetidamente el botón de traza sin tener el servicio activo.
 
 ## [1.1.0] - 2026-04-03 — Monitoreo Avanzado y Sync de Subscripciones
 

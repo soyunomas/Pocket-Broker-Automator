@@ -6,6 +6,7 @@ import '../models/connection_profile.dart';
 import '../services/mqtt_client_service.dart';
 import '../services/log_service.dart';
 import '../services/background_service.dart';
+import '../utils/battery_optimizer.dart';
 
 class ConnectionProvider extends ChangeNotifier {
   final LogService logService;
@@ -42,12 +43,10 @@ class ConnectionProvider extends ChangeNotifier {
       }
     });
 
-    BackgroundServiceController.on('message').listen((event) {
-      if (event != null) {
-        logService.log('received',
-            '${event['topic'] ?? ''} → ${event['payload'] ?? ''}');
-      }
-    });
+    // Messages are forwarded selectively by the background service
+    // (only monitor-relevant topics). No Hive write here — the
+    // MonitorProvider handles its own persistence.
+    BackgroundServiceController.on('message').listen((_) {});
 
     // Receive logs written by the background isolate and replay them
     // into the UI's LogService so LogProvider picks them up
@@ -115,6 +114,14 @@ class ConnectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> importProfiles(List<ConnectionProfile> profiles) async {
+    for (final p in profiles) {
+      await _box?.add(p);
+    }
+    _profiles = _box!.values.toList();
+    notifyListeners();
+  }
+
   Future<void> deleteProfile(ConnectionProfile profile) async {
     // If deleting the active connection, disconnect first
     if (profile.id == _activeProfileId) {
@@ -128,6 +135,12 @@ class ConnectionProvider extends ChangeNotifier {
   // --- Connect / Disconnect (always via foreground service) ---
 
   Future<bool> connect(ConnectionProfile profile) async {
+    // Request battery optimization exclusion on first connect (critical for Xiaomi/Samsung/Huawei)
+    final isIgnoring = await BatteryOptimizer.isIgnoringBatteryOptimizations();
+    if (!isIgnoring) {
+      await BatteryOptimizer.requestDisableBatteryOptimization();
+    }
+
     await _ensureServiceStarted();
 
     BackgroundServiceController.connectToProfile({
