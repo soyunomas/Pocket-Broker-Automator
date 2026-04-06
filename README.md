@@ -1,9 +1,5 @@
 # PocketBroker Automator
 
-<p align="center">
-  <img src="github/screenshots/icon_placeholder.png" alt="PocketBroker Automator" width="120" />
-</p>
-
 **Aplicación Android para control y automatización IoT vía MQTT.**
 
 PocketBroker Automator actúa como cliente MQTT avanzado, motor de automatización basado en eventos y panel de control interactivo — todo en un solo dispositivo, sin necesidad de cloud.
