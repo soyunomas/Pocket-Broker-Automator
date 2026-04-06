@@ -37,6 +37,14 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> importButtons(List<DashboardButton> buttons) async {
+    for (final b in buttons) {
+      await _box?.add(b);
+    }
+    _buttons = _box!.values.toList();
+    notifyListeners();
+  }
+
   void pressButton(DashboardButton button) {
     BackgroundServiceController.publish(
       button.topic,

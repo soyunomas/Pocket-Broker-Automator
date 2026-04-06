@@ -167,21 +167,24 @@ class AutomationsScreen extends StatelessWidget {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             FilledButton(
               onPressed: () {
-                if (nameCtrl.text.isEmpty || topicCtrl.text.isEmpty) return;
+                final name = nameCtrl.text.trim();
+                final topic = topicCtrl.text.trim();
+                final condValue = valueCtrl.text.trim();
+                if (name.isEmpty || topic.isEmpty) return;
                 final condition = RuleCondition(
                   type: conditionType,
-                  value: conditionType == 'any' ? '' : valueCtrl.text,
+                  value: conditionType == 'any' ? '' : condValue,
                 );
                 if (isEditing) {
-                  rule.name = nameCtrl.text;
-                  rule.topic = topicCtrl.text;
+                  rule.name = name;
+                  rule.topic = topic;
                   rule.condition = condition;
                   rule.actions = actions;
                   provider.updateRule(rule);
                 } else {
                   provider.addRule(AutomationRule(
-                    name: nameCtrl.text,
-                    topic: topicCtrl.text,
+                    name: name,
+                    topic: topic,
                     condition: condition,
                     actions: actions,
                   ));
@@ -290,23 +293,25 @@ class AutomationsScreen extends StatelessWidget {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
             FilledButton(
               onPressed: () {
+                final p1 = param1Ctrl.text.trim();
+                final p2 = param2Ctrl.text.trim();
                 Map<String, String> params;
                 switch (type) {
                   case 'publish':
-                    params = {'topic': param1Ctrl.text, 'payload': param2Ctrl.text};
+                    params = {'topic': p1, 'payload': p2};
                     break;
                   case 'webhook':
                     params = {
-                      'url': param1Ctrl.text,
+                      'url': p1,
                       'method': webhookMethod,
-                      'body': param2Ctrl.text,
+                      'body': p2,
                     };
                     break;
                   case 'sound':
-                    params = {'file': param1Ctrl.text};
+                    params = {'file': p1};
                     break;
                   case 'intent':
-                    params = {'url': param1Ctrl.text};
+                    params = {'url': p1};
                     break;
                   default:
                     params = {};

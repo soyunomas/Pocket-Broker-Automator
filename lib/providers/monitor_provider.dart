@@ -16,8 +16,8 @@ class MonitorProvider extends ChangeNotifier {
 
   // In-memory readings cache for charts (last N per topic)
   final Map<String, List<SensorReading>> _readingsCache = {};
-  static const int _maxCachedReadings = 200;
-  static const int _maxStoredReadings = 5000;
+  static const int _maxCachedReadings = 10000;
+  static const int _maxStoredReadings = 50000;
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _connectionSubscription;
@@ -207,6 +207,15 @@ class MonitorProvider extends ChangeNotifier {
       BackgroundServiceController.unsubscribe(widget.topic);
     }
     await widget.delete();
+    _widgets = _widgetsBox!.values.toList();
+    notifyListeners();
+  }
+
+  Future<void> importWidgets(List<MonitorWidget> widgets) async {
+    for (final w in widgets) {
+      await _widgetsBox?.add(w);
+      BackgroundServiceController.subscribe(w.topic);
+    }
     _widgets = _widgetsBox!.values.toList();
     notifyListeners();
   }

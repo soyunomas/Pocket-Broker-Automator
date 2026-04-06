@@ -44,6 +44,15 @@ class AutomationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> importRules(List<AutomationRule> rules) async {
+    for (final r in rules) {
+      await _box?.add(r);
+    }
+    _rules = _box!.values.toList();
+    _notifyService();
+    notifyListeners();
+  }
+
   Future<void> toggleRule(AutomationRule rule) async {
     rule.enabled = !rule.enabled;
     await rule.save();
