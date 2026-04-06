@@ -12,7 +12,7 @@ PocketBroker Automator actúa como cliente MQTT avanzado, motor de automatizaci�
 
 ## 📥 Descarga
 
-El APK release compilado está disponible en la carpeta [`app/`](app/app-release.apk). Descárgalo e instálalo directamente en tu dispositivo Android.
+El APK release compilado está disponible en la carpeta [`RELEASES`](https://github.com/soyunomas/Pocket-Broker-Automator/releases). Descárgalo e instálalo directamente en tu dispositivo Android.
 
 ---
 
